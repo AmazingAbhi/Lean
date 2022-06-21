@@ -14,41 +14,64 @@
 */
 
 using System;
-using System.Collections.Generic;
+using QuantConnect.Data;
 using QuantConnect.Interfaces;
+using QuantConnect.Data.Market;
+using System.Collections.Generic;
+using QuantConnect.Data.Consolidators;
 
 namespace QuantConnect.Algorithm.CSharp
 {
     /// <summary>
-    /// Regression algorithm asserting <see cref="OnWarmupFinished"/> is being called
+    /// Regression algorithm asserting the behavior of a period consolidator
     /// </summary>
-    public class OnWarmupFinishedRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
+    public class PeriodConsolidatorRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
     {
-        private int _onWarmupFinished;
-        /// <summary>
-        /// Initialise the data and resolution required, as well as the cash and start-end dates for your algorithm. All algorithms must initialized.
-        /// </summary>
+        private Queue<string> _periodConsolidation = new();
+        private Queue<string> _countConsolidation = new();
+
         public override void Initialize()
         {
-            SetStartDate(2013, 10, 08);
-            SetEndDate(2013, 10, 11);
-            SetCash(100000);
+            SetStartDate(2013, 10, 07);
+            SetEndDate(2013, 10, 08);
+            
+            var symbol = AddEquity("SPY").Symbol;
 
-            AddEquity("SPY", Resolution.Minute);
-            SetWarmup(TimeSpan.FromDays(1));
+            var periodConsolidator = new TradeBarConsolidator(Resolution.Minute.ToTimeSpan());
+            periodConsolidator.DataConsolidated += PeriodConsolidator_DataConsolidated;
+            var countConsolidator = new TradeBarConsolidator(1);
+            countConsolidator.DataConsolidated += CountConsolidator_DataConsolidated;
+
+            SubscriptionManager.AddConsolidator(symbol, periodConsolidator);
+            SubscriptionManager.AddConsolidator(symbol, countConsolidator);
         }
 
-        public override void OnWarmupFinished()
+        private void PeriodConsolidator_DataConsolidated(object sender, TradeBar e)
         {
-            _onWarmupFinished++;
+            _periodConsolidation.Enqueue($"{Time} - {e.EndTime} {e}");
+        }
+        private void CountConsolidator_DataConsolidated(object sender, TradeBar e)
+        {
+            _countConsolidation.Enqueue($"{Time} - {e.EndTime} {e}");
         }
 
         public override void OnEndOfAlgorithm()
         {
-            if (_onWarmupFinished != 1)
+            if (_countConsolidation.Count == 0 || _countConsolidation.Count != _periodConsolidation.Count)
             {
-                throw new Exception($"Unexpected {nameof(OnWarmupFinished)} call count {_onWarmupFinished}!");
+                throw new Exception($"Unexpected consolidated data count. Period: {_periodConsolidation.Count} Count: {_countConsolidation.Count}");
             }
+
+            while (_countConsolidation.TryDequeue(out var countData))
+            {
+                var periodData = _periodConsolidation.Dequeue();
+                if (periodData != countData)
+                {
+                    throw new Exception($"Unexpected consolidated data. Period: '{periodData}' != Count: '{countData}'");
+                }
+            }
+            _periodConsolidation.Clear();
+            _countConsolidation.Clear();
         }
 
         /// <summary>
@@ -59,12 +82,12 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// This is used by the regression test system to indicate which languages this algorithm is written in.
         /// </summary>
-        public Language[] Languages { get; } = { Language.CSharp, Language.Python };
+        public Language[] Languages { get; } = { Language.CSharp };
 
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 3943;
+        public long DataPoints => 1582;
 
         /// <summary>
         /// Data Points count of the algorithm history
@@ -92,8 +115,8 @@ namespace QuantConnect.Algorithm.CSharp
             {"Beta", "0"},
             {"Annual Standard Deviation", "0"},
             {"Annual Variance", "0"},
-            {"Information Ratio", "-57.739"},
-            {"Tracking Error", "0.178"},
+            {"Information Ratio", "0"},
+            {"Tracking Error", "0"},
             {"Treynor Ratio", "0"},
             {"Total Fees", "$0.00"},
             {"Estimated Strategy Capacity", "$0"},
