@@ -31,6 +31,7 @@ using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Lean.Engine.DataFeeds;
 using QuantConnect.Lean.Engine.HistoricalData;
 using QuantConnect.Util;
+using QuantConnect.Statistics;
 
 namespace QuantConnect.Tests.Algorithm
 {
@@ -79,8 +80,7 @@ namespace QuantConnect.Tests.Algorithm
             }
 
             AlgorithmRunner.RunLocalBacktest(nameof(TestWarmupAlgorithm),
-                new Dictionary<string, string> { { "Total Trades", "1" } },
-                null,
+                new Dictionary<string, string> { { PerformanceMetrics.TotalOrders, "1" } },
                 Language.CSharp,
                 AlgorithmStatus.Completed,
                 setupHandler: "TestSetupHandler");
@@ -155,17 +155,18 @@ namespace QuantConnect.Tests.Algorithm
             {
                 HistoryProvider = new SubscriptionDataReaderHistoryProvider()
             };
-            var zipCacheProvider = new ZipDataCacheProvider(TestGlobals.DataProvider);
             algo.HistoryProvider.Initialize(new HistoryProviderInitializeParameters(
                 null,
                 null,
                 TestGlobals.DataProvider,
-                zipCacheProvider,
+                TestGlobals.DataCacheProvider,
                 TestGlobals.MapFileProvider,
                 TestGlobals.FactorFileProvider,
                 null,
                 false,
-                new DataPermissionManager()));
+                new DataPermissionManager(),
+                algo.ObjectStore,
+                algo.Settings));
             algo.SetStartDate(2013, 10, 08);
             algo.AddEquity("SPY", Resolution.Minute);
 
@@ -192,8 +193,6 @@ namespace QuantConnect.Tests.Algorithm
                 Assert.IsTrue(atrIsReady.IsTrue());
                 Assert.IsTrue(vwapiIsReady.IsTrue());
             }
-
-            zipCacheProvider.DisposeSafely();
         }
 
         [TestCase(false)]
@@ -221,11 +220,13 @@ namespace QuantConnect.Tests.Algorithm
 
         [TestCase(false)]
         [TestCase(true)]
-        public void WarmupStartDate_Equity(bool withResolution)
+        public void WarmupStartDate_Equity_BarCount(bool withResolution)
         {
             var algo = new AlgorithmStub(new NullDataFeed { ShouldThrow = false });
             algo.SetStartDate(2013, 10, 01);
             algo.AddEquity("AAPL");
+            // since SPY is a smaller resolution, won't affect in the bar count case, only the smallest warmup start time will be used
+            algo.AddEquity("SPY", Resolution.Tick);
             DateTime expected;
             if (withResolution)
             {
@@ -242,6 +243,140 @@ namespace QuantConnect.Tests.Algorithm
 
             // before than the case with no asset because takes into account 100 tradable dates of AAPL
             Assert.AreEqual(expected, algo.Time);
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(4)]
+        [TestCase(5)]
+        public void WarmupStart_Equivalents(int testCase)
+        {
+            var algo = new AlgorithmStub(new NullDataFeed { ShouldThrow = false });
+            algo.SetStartDate(2013, 10, 01);
+            algo.AddEquity("AAPL", Resolution.Daily);
+            // since SPY is a smaller resolution, won't affect in the bar count case, only the smallest warmup start time will be used
+            algo.AddEquity("SPY", Resolution.Tick);
+            var expected = new DateTime(2013, 09, 20);
+            if (testCase == 0)
+            {
+                algo.SetWarmUp(7, Resolution.Daily);
+            }
+            else if (testCase == 1)
+            {
+                algo.SetWarmUp(7);
+            }
+            else if (testCase == 2)
+            {
+                algo.SetWarmUp(7);
+                algo.Settings.WarmupResolution = Resolution.Daily;
+            }
+            else if (testCase == 3)
+            {
+                // account for 2 weeknds
+                algo.SetWarmUp(TimeSpan.FromDays(11), Resolution.Daily);
+            }
+            else if (testCase == 4)
+            {
+                // account for 2 weeknds
+                algo.SetWarmUp(TimeSpan.FromDays(11));
+                algo.Settings.WarmupResolution = Resolution.Daily;
+            }
+            else if (testCase == 5)
+            {
+                // account for 2 weeknds
+                algo.SetWarmUp(TimeSpan.FromDays(11));
+            }
+            algo.PostInitialize();
+
+            Assert.AreEqual(expected, algo.Time);
+        }
+
+        [TestCase("UTC")]
+        [TestCase("Asia/Hong_Kong")]
+        [TestCase("America/New_York")]
+        public void WarmupEndTime(string timeZone)
+        {
+            var algo = new AlgorithmStub(new NullDataFeed { ShouldThrow = false });
+            algo.SetLiveMode(true);
+
+            algo.SetWarmup(TimeSpan.FromDays(1));
+            algo.SetTimeZone(timeZone);
+            algo.PostInitialize();
+            algo.SetLocked();
+
+            Assert.IsTrue(algo.IsWarmingUp);
+
+            var start = DateTime.UtcNow;
+
+            algo.SetDateTime(start.AddMinutes(-1));
+            Assert.IsTrue(algo.IsWarmingUp);
+            algo.SetDateTime(start);
+            Assert.IsFalse(algo.IsWarmingUp);
+        }
+
+        [Test]
+        public void WarmupResolutionPython()
+        {
+            using (Py.GIL())
+            {
+                dynamic algo = PyModule.FromString("testModule",
+                    @"
+from AlgorithmImports import *
+from QuantConnect.Tests.Engine.DataFeeds import *
+
+class TestAlgo(AlgorithmStub):
+    def initialize(self):
+        self.data_feed.should_throw = False
+
+        self.set_start_date(2013, 10, 1)
+        self.add_equity(""AAPL"")
+        self.set_warm_up(60)
+").GetAttr("TestAlgo").Invoke();
+
+                algo.initialize();
+                algo.post_initialize();
+
+                // the last trading hour of the previous day
+                Assert.AreEqual(new DateTime(2013, 09, 30, 15, 0, 0), (DateTime)algo.time);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void WarmupResolutionPythonPassThrough(bool passThrough)
+        {
+            using (Py.GIL())
+            {
+                dynamic algo = PyModule.FromString("testModule",
+                    @"
+from AlgorithmImports import *
+from QuantConnect.Tests.Engine.DataFeeds import *
+
+class TestAlgo(AlgorithmStub):
+    def __init__(self, pass_through):
+        self.pass_through = pass_through
+
+    def initialize(self):
+        self.data_feed.should_throw = False
+
+        self.set_start_date(2013, 10, 1)
+        self.add_equity(""AAPL"")
+        self.set_warm_up(10)
+        if self.pass_through:
+            self.settings.warm_up_resolution = Resolution.DAILY
+        else:
+            self.settings.warmup_resolution = Resolution.DAILY
+").GetAttr("TestAlgo").Invoke(passThrough.ToPython());
+
+                algo.initialize();
+                algo.post_initialize();
+
+                Assert.AreEqual(passThrough, (bool)algo.pass_through);
+                // 10 daily bars including 2 weekends
+                Assert.AreEqual(new DateTime(2013, 09, 17), (DateTime)algo.time);
+            }
         }
 
         private class TestSetupHandler : AlgorithmRunner.RegressionSetupHandlerWrapper

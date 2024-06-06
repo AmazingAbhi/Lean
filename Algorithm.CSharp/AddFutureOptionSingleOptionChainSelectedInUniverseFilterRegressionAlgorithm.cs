@@ -43,7 +43,7 @@ namespace QuantConnect.Algorithm.CSharp
         public override void Initialize()
         {
             SetStartDate(2020, 1, 4);
-            SetEndDate(2020, 1, 6);
+            SetEndDate(2020, 1, 8);
 
             _es = AddFuture(Futures.Indices.SP500EMini, Resolution.Minute, Market.CME);
             _es.SetFilter((futureFilter) =>
@@ -164,8 +164,6 @@ namespace QuantConnect.Algorithm.CSharp
 
         public override void OnEndOfAlgorithm()
         {
-            base.OnEndOfAlgorithm();
-
             if (!_optionFilterRan)
             {
                 throw new InvalidOperationException("Option chain filter was never ran");
@@ -222,7 +220,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 779544;
+        public long DataPoints => 608378;
 
         /// <summary>
         /// Data Points count of the algorithm history
@@ -234,48 +232,33 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "2"},
+            {"Total Orders", "2"},
             {"Average Win", "0%"},
             {"Average Loss", "0%"},
-            {"Compounding Annual Return", "-10.708%"},
-            {"Drawdown", "0.200%"},
+            {"Compounding Annual Return", "347.065%"},
+            {"Drawdown", "0.900%"},
             {"Expectancy", "0"},
-            {"Net Profit", "-0.093%"},
-            {"Sharpe Ratio", "-10.594"},
-            {"Probabilistic Sharpe Ratio", "0%"},
+            {"Start Equity", "100000"},
+            {"End Equity", "101950.53"},
+            {"Net Profit", "1.951%"},
+            {"Sharpe Ratio", "15.402"},
+            {"Sortino Ratio", "0"},
+            {"Probabilistic Sharpe Ratio", "95.977%"},
             {"Loss Rate", "0%"},
             {"Win Rate", "0%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "-0.261"},
-            {"Beta", "0.244"},
-            {"Annual Standard Deviation", "0.01"},
-            {"Annual Variance", "0"},
-            {"Information Ratio", "-22.456"},
-            {"Tracking Error", "0.032"},
-            {"Treynor Ratio", "-0.454"},
-            {"Total Fees", "$3.70"},
-            {"Estimated Strategy Capacity", "$41000.00"},
-            {"Lowest Capacity Asset", "ES 31C3JQTOYO9T0|ES XCZJLC9NOB29"},
-            {"Fitness Score", "0.273"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "79228162514264337593543950335"},
-            {"Return Over Maximum Drawdown", "-123.159"},
-            {"Portfolio Turnover", "0.547"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "9347e3b610cfa21f7cbd968a0135c8af"}
+            {"Alpha", "1.886"},
+            {"Beta", "1.066"},
+            {"Annual Standard Deviation", "0.155"},
+            {"Annual Variance", "0.024"},
+            {"Information Ratio", "13.528"},
+            {"Tracking Error", "0.142"},
+            {"Treynor Ratio", "2.237"},
+            {"Total Fees", "$3.57"},
+            {"Estimated Strategy Capacity", "$760000.00"},
+            {"Lowest Capacity Asset", "ES XCZJLDQX2SRO|ES XCZJLC9NOB29"},
+            {"Portfolio Turnover", "32.31%"},
+            {"OrderListHash", "7a04f66a30d793bf187c2695781ad3ee"}
         };
     }
 }

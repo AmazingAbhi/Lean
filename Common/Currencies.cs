@@ -13,7 +13,11 @@
  * limitations under the License.
 */
 
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace QuantConnect
 {
@@ -145,7 +149,13 @@ namespace QuantConnect
         /// <summary>
         /// Stable pairs in GDAX. We defined them because they have different fees in GDAX market
         /// </summary>
-        public static HashSet<string> StablePairsGDAX = new HashSet<string>
+        [Obsolete("StablePairsGDAX is deprecated. Use StablePairsCoinbase instead.")]
+        public static readonly HashSet<string> StablePairsGDAX = StablePairsCoinbase;
+
+        /// <summary>
+        /// Stable pairs in Coinbase. We defined them because they have different fees in Coinbase market
+        /// </summary>
+        public static readonly HashSet<string> StablePairsCoinbase = new()
         {
             "DAIUSDC",
             "DAIUSD",
@@ -166,12 +176,12 @@ namespace QuantConnect
         };
 
         /// <summary>
-        /// Define some StableCoins that don't have direct pairs for base currencies in our SPDB in GDAX market
+        /// Define some StableCoins that don't have direct pairs for base currencies in our SPDB in Coinbase market
         /// This is because some CryptoExchanges do not define direct pairs with the stablecoins they offer.
         ///
         /// We use this to allow setting cash amounts for these stablecoins without needing a conversion
         /// security.
-        private static readonly HashSet<string> _stableCoinsWithoutPairsGDAX = new HashSet<string>
+        private static readonly HashSet<string> _stableCoinsWithoutPairsCoinbase = new HashSet<string>
         {
             "USDCUSD"
         };
@@ -192,6 +202,7 @@ namespace QuantConnect
             "BUSDUSD",
             "USTUSD",
             "TUSDUSD",
+            "FDUSDUSD",
             "DAIUSD",
             "IDRTIDR"
         };
@@ -210,13 +221,33 @@ namespace QuantConnect
         };
 
         /// <summary>
+        /// Define some StableCoins that don't have direct pairs for base currencies in our SPDB in Binance market
+        /// This is because some CryptoExchanges do not define direct pairs with the stablecoins they offer.
+        ///
+        /// We use this to allow setting cash amounts for these stablecoins without needing a conversion
+        /// security.
+        /// </summary>
+        private static readonly HashSet<string> _stableCoinsWithoutPairsBybit = new HashSet<string>
+        {
+            "USDCUSD",
+            "USDTUSD",
+            "USDPUSD",
+            "SUSDUSD",
+            "BUSDUSD",
+            "USTUSD",
+            "TUSDUSD",
+            "DAIUSD"
+        };
+
+        /// <summary>
         /// Dictionary to save StableCoins in different Markets
         /// </summary>
         private static readonly Dictionary<string, HashSet<string>> _stableCoinsWithoutPairsMarkets = new Dictionary<string, HashSet<string>>
         {
             { Market.Binance , _stableCoinsWithoutPairsBinance},
             { Market.Bitfinex , _stableCoinsWithoutPairsBitfinex},
-            { Market.GDAX , _stableCoinsWithoutPairsGDAX},
+            { Market.Coinbase, _stableCoinsWithoutPairsCoinbase},
+            { Market.Bybit , _stableCoinsWithoutPairsBybit},
         };
 
         /// <summary>
@@ -241,8 +272,43 @@ namespace QuantConnect
         /// <returns>The currency symbol</returns>
         public static string GetCurrencySymbol(string currency)
         {
-            string currencySymbol;
-            return CurrencySymbols.TryGetValue(currency, out currencySymbol) ? currencySymbol : currency;
+            if (string.IsNullOrEmpty(currency))
+            {
+                return string.Empty;
+            }
+
+            return CurrencySymbols.TryGetValue(currency, out var currencySymbol) ? currencySymbol : currency;
+        }
+
+        /// <summary>
+        /// Converts the string representation of number with currency in the format {currency}{value} to its decimal equivalent.
+        /// It throws if the value cannot be converted to a decimal number.
+        /// </summary>
+        /// <param name="value">The value with currency</param>
+        /// <returns>The decimal equivalent to the value</returns>
+        public static decimal Parse(string value)
+        {
+            decimal parsedValue;
+
+            if (!TryParse(value, out parsedValue))
+            {
+                throw new ArgumentException(Messages.Currencies.FailedConversionToDecimal(value));
+            }
+
+            return parsedValue;
+        }
+
+        /// <summary>
+        /// Converts the string representation of number with currency in the format {currency}{value} to its decimal equivalent.
+        /// </summary>
+        /// <param name="value">The value with currency</param>
+        /// <param name="parsedValue">The decimal equivalent to the string value after conversion</param>
+        /// <returns>True if the value was succesfuly converted</returns>
+        public static bool TryParse(string value, out decimal parsedValue)
+        {
+            // Strip out the currency (any character before the first number) ignoring blank spaces since they are not supposed to be in numbers with currency
+            value = Regex.Replace(value, @"^[^\d\s-+]+", string.Empty);
+            return decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out parsedValue);
         }
     }
 }

@@ -21,10 +21,12 @@ using QuantConnect.Indicators;
 namespace QuantConnect.Tests.Indicators
 {
     [TestFixture]
-    public class SuperTrendTests : CommonIndicatorTests<TradeBar>
+    public class SuperTrendTests : CommonIndicatorTests<IBaseDataBar>
     {
-        protected override IndicatorBase<TradeBar> CreateIndicator()
+        protected override IndicatorBase<IBaseDataBar> CreateIndicator()
         {
+            RenkoBarSize = 1m;
+            VolumeRenkoBarSize = 0.5m;
             return new SuperTrend(10,3);
         }
 
@@ -32,7 +34,7 @@ namespace QuantConnect.Tests.Indicators
 
         protected override string TestColumnName => "Super";
 
-        protected override Action<IndicatorBase<TradeBar>, double> Assertion
+        protected override Action<IndicatorBase<IBaseDataBar>, double> Assertion
         {
             get { return (indicator, expected) => Assert.AreEqual(expected, (double)indicator.Current.Value, 0.05); }
         }

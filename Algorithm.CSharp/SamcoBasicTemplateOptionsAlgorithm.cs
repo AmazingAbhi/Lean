@@ -88,7 +88,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// Order fill event handler. On an order fill update the resulting information is passed to
         /// this method.
         /// </summary>
-        /// <param name="orderEvent">Order event details containing details of the evemts</param>
+        /// <param name="orderEvent">Order event details containing details of the events</param>
         /// <remarks>
         /// This method can be called asynchronously and so should only be used by seasoned C#
         /// experts. Ensure you use proper locks on thread-unsafe objects
@@ -116,7 +116,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "2"},
+            {"Total Orders", "2"},
             {"Average Win", "0%"},
             {"Average Loss", "0%"},
             {"Compounding Annual Return", "0%"},

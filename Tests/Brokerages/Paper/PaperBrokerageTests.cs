@@ -121,7 +121,7 @@ namespace QuantConnect.Tests.Brokerages.Paper
             var brokerage = new PaperBrokerage(algorithm, job);
 
             // initialize results and transactions
-            results.Initialize(job, new EventMessagingHandler(), new Api.Api(), transactions);
+            results.Initialize(new (job, new EventMessagingHandler(), new Api.Api(), transactions, null));
             results.SetAlgorithm(algorithm, algorithm.Portfolio.TotalPortfolioValue);
             transactions.Initialize(algorithm, brokerage, results);
 
@@ -134,7 +134,6 @@ namespace QuantConnect.Tests.Brokerages.Paper
                 results,
                 realTime,
                 new AlgorithmManagerTests.NullLeanManager(),
-                new AlgorithmManagerTests.NullAlphaHandler(),
                 new CancellationToken()
             );
 

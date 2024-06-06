@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -27,13 +27,11 @@ namespace QuantConnect.Packets
         /// <summary>
         /// Packet type defined by a string enum
         /// </summary>
-        [JsonProperty(PropertyName = "eType")]
         public PacketType Type { get; set; } = PacketType.None;
 
         /// <summary>
         /// User unique specific channel endpoint to send the packets
         /// </summary>
-        [JsonProperty(PropertyName = "sChannel")]
         public virtual string Channel { get; set; } = "";
 
         /// <summary>
@@ -165,6 +163,33 @@ namespace QuantConnect.Packets
         OptimizationStatus,
 
         /// Optimization work result
-        OptimizationResult
+        OptimizationResult,
+
+        /// Aggregated packets
+        Aggregated,
+
+        /// Query the language model
+        LanguageModelQuery,
+
+        /// Send feedback to a language model response
+        LanguageModelFeedback,
+
+        /// The language models response
+        LanguageModelResponse,
+
+        /// Language model code analysis
+        LanguageModelCodeAnalysis,
+
+        /// Language model chat work
+        LanguageModelChatWork,
+
+        /// Language model chat response
+        LanguageModelChatResponse,
+
+        /// Algorithm name update
+        AlgorithmNameUpdate,
+
+        /// Algorithm tags update
+        AlgorithmTagsUpdate,
     }
 }

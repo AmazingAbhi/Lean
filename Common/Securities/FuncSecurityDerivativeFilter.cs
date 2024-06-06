@@ -15,8 +15,6 @@
 */
 
 using System;
-using System.Collections.Generic;
-using QuantConnect.Data;
 
 namespace QuantConnect.Securities
 {
@@ -26,6 +24,11 @@ namespace QuantConnect.Securities
     public class FuncSecurityDerivativeFilter : IDerivativeSecurityFilter
     {
         private readonly Func<IDerivativeSecurityFilterUniverse, IDerivativeSecurityFilterUniverse> _filter;
+
+        /// <summary>
+        /// True if this universe filter can run async in the data stack
+        /// </summary>
+        public bool Asynchronous { get; set; } = true;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FuncSecurityDerivativeFilter"/> class

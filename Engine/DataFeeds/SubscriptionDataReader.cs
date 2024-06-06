@@ -16,6 +16,7 @@
 
 using System;
 using System.Linq;
+using QuantConnect.Util;
 using QuantConnect.Data;
 using System.Collections;
 using System.Globalization;
@@ -36,6 +37,7 @@ namespace QuantConnect.Lean.Engine.DataFeeds
     public class SubscriptionDataReader : IEnumerator<BaseData>, ITradableDatesNotifier, IDataProviderEvents
     {
         private IDataProvider _dataProvider;
+        private IObjectStore _objectStore;
         private bool _initialized;
 
         // Source string to create memory stream:
@@ -136,7 +138,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds
             IMapFileProvider mapFileProvider,
             IFactorFileProvider factorFileProvider,
             IDataCacheProvider dataCacheProvider,
-            IDataProvider dataProvider)
+            IDataProvider dataProvider,
+            IObjectStore objectStore)
         {
             //Save configuration of data-subscription:
             _config = config;
@@ -149,8 +152,9 @@ namespace QuantConnect.Lean.Engine.DataFeeds
             _dataCacheProvider = dataCacheProvider;
 
             //Save access to securities
-            _tradeableDates = dataRequest.TradableDays.GetEnumerator();
+            _tradeableDates = dataRequest.TradableDaysInDataTimeZone.GetEnumerator();
             _dataProvider = dataProvider;
+            _objectStore = objectStore;
         }
 
         /// <summary>
@@ -407,6 +411,11 @@ namespace QuantConnect.Lean.Engine.DataFeeds
 
                 // fetch the new source, using the data time zone for the date
                 var newSource = _dataFactory.GetSource(_config, date, false);
+                if (newSource == null)
+                {
+                    // move to the next day
+                    continue;
+                }
 
                 // check if we should create a new subscription factory
                 var sourceChanged = _source != newSource && newSource.Source != "";
@@ -438,7 +447,7 @@ namespace QuantConnect.Lean.Engine.DataFeeds
 
         private ISubscriptionDataSourceReader CreateSubscriptionFactory(SubscriptionDataSource source, BaseData baseDataInstance, IDataProvider dataProvider)
         {
-            var factory = SubscriptionDataSourceReader.ForSource(source, _dataCacheProvider, _config, _tradeableDates.Current, false, baseDataInstance, dataProvider);
+            var factory = SubscriptionDataSourceReader.ForSource(source, _dataCacheProvider, _config, _tradeableDates.Current, false, baseDataInstance, dataProvider, _objectStore);
             AttachEventHandlers(factory, source);
             return factory;
         }
@@ -472,6 +481,9 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                         break;
 
                     case SubscriptionTransportMedium.Rest:
+                        break;
+
+                    case SubscriptionTransportMedium.ObjectStore:
                         break;
 
                     default:
@@ -549,7 +561,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds
         /// </summary>
         public void Dispose()
         {
-            _subscriptionFactoryEnumerator?.Dispose();
+            _subscriptionFactoryEnumerator.DisposeSafely();
+            _tradeableDates.DisposeSafely();
         }
 
         /// <summary>

@@ -47,7 +47,8 @@ namespace QuantConnect.Algorithm.CSharp
 
         private readonly CircularQueue<OrderType> _orderTypesQueue = new CircularQueue<OrderType>(Enum.GetValues(typeof(OrderType))
                                                                         .OfType<OrderType>()
-                                                                        .Where (x => x != OrderType.OptionExercise && x != OrderType.LimitIfTouched));
+                                                                        .Where (x => x != OrderType.OptionExercise && x != OrderType.LimitIfTouched
+                                                                            && x != OrderType.ComboMarket && x != OrderType.ComboLimit && x != OrderType.ComboLegLimit));
         private readonly List<OrderTicket> _tickets = new List<OrderTicket>();
 
         /// <summary>
@@ -94,7 +95,8 @@ namespace QuantConnect.Algorithm.CSharp
                 {
                     limitPrice = !isLong ? (1 + LimitPercentage) * data.Bars[symbol].High : (1 - LimitPercentage) * data.Bars[symbol].Low;
                 }
-                var request = new SubmitOrderRequest(orderType, SecType, symbol, Quantity, stopPrice, limitPrice, UtcTime, ((int)orderType).ToString(CultureInfo.InvariantCulture));
+                var request = new SubmitOrderRequest(orderType, SecType, symbol, Quantity, stopPrice, limitPrice, 0, 0.01m, true, UtcTime,
+                    ((int)orderType).ToString(CultureInfo.InvariantCulture));
                 var ticket = Transactions.AddOrder(request);
                 _tickets.Add(ticket);
             }
@@ -122,7 +124,9 @@ namespace QuantConnect.Algorithm.CSharp
                         ticket.Update(new UpdateOrderFields
                         {
                             LimitPrice = Security.Price*(1 - Math.Sign(ticket.Quantity)*LimitPercentageDelta),
-                            StopPrice = Security.Price*(1 + Math.Sign(ticket.Quantity)*StopPercentageDelta),
+                            StopPrice = ticket.OrderType != OrderType.TrailingStop
+                                ? Security.Price*(1 + Math.Sign(ticket.Quantity)*StopPercentageDelta)
+                                : null,
                             Tag = "Change prices: " + Time.Day
                         });
                         Log("UPDATE2:: " + ticket.UpdateRequests.Last());
@@ -204,48 +208,33 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "21"},
+            {"Total Orders", "25"},
             {"Average Win", "0%"},
-            {"Average Loss", "-1.51%"},
-            {"Compounding Annual Return", "-7.319%"},
-            {"Drawdown", "15.000%"},
+            {"Average Loss", "-1.91%"},
+            {"Compounding Annual Return", "-12.291%"},
+            {"Drawdown", "24.600%"},
             {"Expectancy", "-1"},
-            {"Net Profit", "-14.102%"},
-            {"Sharpe Ratio", "-1.09"},
-            {"Probabilistic Sharpe Ratio", "0.026%"},
+            {"Start Equity", "100000"},
+            {"End Equity", "76929.28"},
+            {"Net Profit", "-23.071%"},
+            {"Sharpe Ratio", "-1.142"},
+            {"Sortino Ratio", "-1.387"},
+            {"Probabilistic Sharpe Ratio", "0.023%"},
             {"Loss Rate", "100%"},
             {"Win Rate", "0%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "0.015"},
-            {"Beta", "-0.417"},
-            {"Annual Standard Deviation", "0.046"},
-            {"Annual Variance", "0.002"},
-            {"Information Ratio", "-1.525"},
-            {"Tracking Error", "0.135"},
-            {"Treynor Ratio", "0.12"},
-            {"Total Fees", "$21.00"},
-            {"Estimated Strategy Capacity", "$3000000000.00"},
+            {"Alpha", "0.02"},
+            {"Beta", "-0.754"},
+            {"Annual Standard Deviation", "0.08"},
+            {"Annual Variance", "0.006"},
+            {"Information Ratio", "-1.42"},
+            {"Tracking Error", "0.168"},
+            {"Treynor Ratio", "0.121"},
+            {"Total Fees", "$19.00"},
+            {"Estimated Strategy Capacity", "$1100000000.00"},
             {"Lowest Capacity Asset", "SPY R735QTJ8XC9X"},
-            {"Fitness Score", "0.001"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "-2.096"},
-            {"Return Over Maximum Drawdown", "-0.489"},
-            {"Portfolio Turnover", "0.006"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "308c3da05b4bd6f294158736c998ef36"}
+            {"Portfolio Turnover", "0.46%"},
+            {"OrderListHash", "de729deb1ce5a1e581e78e73a566d232"}
         };
     }
 }

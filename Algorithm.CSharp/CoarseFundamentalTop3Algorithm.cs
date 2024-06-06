@@ -19,6 +19,7 @@ using System.Linq;
 using QuantConnect.Data.Market;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Orders;
+using QuantConnect.Data;
 
 namespace QuantConnect.Algorithm.CSharp
 {
@@ -63,8 +64,11 @@ namespace QuantConnect.Algorithm.CSharp
             return top.Select(x => x.Symbol);
         }
 
-        //Data Event Handler: New data arrives here. "TradeBars" type is a dictionary of strings so you can access it by symbol.
-        public void OnData(TradeBars data)
+        /// <summary>
+        /// OnData event is the primary entry point for your algorithm. Each new data point will be pumped in here.
+        /// </summary>
+        /// <param name="data">Slice object keyed by symbol containing the stock data</param>
+        public override void OnData(Slice data)
         {
             Log($"OnData({UtcTime:o}): Keys: {string.Join(", ", data.Keys.OrderBy(x => x))}");
 
@@ -126,48 +130,33 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "12"},
+            {"Total Orders", "12"},
             {"Average Win", "0.55%"},
             {"Average Loss", "-0.26%"},
             {"Compounding Annual Return", "16.717%"},
             {"Drawdown", "1.700%"},
             {"Expectancy", "0.850"},
+            {"Start Equity", "50000"},
+            {"End Equity", "50318.65"},
             {"Net Profit", "0.637%"},
-            {"Sharpe Ratio", "1.088"},
+            {"Sharpe Ratio", "1.024"},
+            {"Sortino Ratio", "2.169"},
             {"Probabilistic Sharpe Ratio", "50.223%"},
             {"Loss Rate", "40%"},
             {"Win Rate", "60%"},
             {"Profit-Loss Ratio", "2.08"},
-            {"Alpha", "0.198"},
+            {"Alpha", "0.196"},
             {"Beta", "0.741"},
             {"Annual Standard Deviation", "0.118"},
             {"Annual Variance", "0.014"},
             {"Information Ratio", "2.294"},
             {"Tracking Error", "0.097"},
-            {"Treynor Ratio", "0.173"},
+            {"Treynor Ratio", "0.163"},
             {"Total Fees", "$27.94"},
             {"Estimated Strategy Capacity", "$200000000.00"},
             {"Lowest Capacity Asset", "AAPL R735QTJ8XC9X"},
-            {"Fitness Score", "0.28"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "3"},
-            {"Return Over Maximum Drawdown", "9.559"},
-            {"Portfolio Turnover", "0.308"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "de456413f89396bd6f920686219ed0a5"}
+            {"Portfolio Turnover", "26.69%"},
+            {"OrderListHash", "82ca991c660ecefbcbdf0b4cc90ddd67"}
         };
     }
 }

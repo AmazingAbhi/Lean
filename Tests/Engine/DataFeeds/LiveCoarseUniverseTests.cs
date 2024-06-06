@@ -21,7 +21,6 @@ using System.Threading;
 using Moq;
 using NUnit.Framework;
 using QuantConnect.Data;
-using QuantConnect.Data.Auxiliary;
 using QuantConnect.Lean.Engine.DataFeeds;
 using QuantConnect.Lean.Engine.Results;
 using QuantConnect.Lean.Engine.TransactionHandlers;
@@ -59,9 +58,9 @@ namespace QuantConnect.Tests.Engine.DataFeeds
             var coarseSymbols = new List<Symbol> { Symbols.SPY, Symbols.AAPL, Symbols.MSFT };
 
             var emitted = new AutoResetEvent(false);
-            var dataQueueHandler = new FuncDataQueueHandler(fdqh => Enumerable.Empty<BaseData>(), timeProvider);
+            var dataQueueHandler = new FuncDataQueueHandler(fdqh => Enumerable.Empty<BaseData>(), timeProvider, new AlgorithmSettings());
 
-            var feed = new TestableLiveTradingDataFeed(dataQueueHandler);
+            var feed = new TestableLiveTradingDataFeed(new AlgorithmSettings(), dataQueueHandler);
 
             var algorithm = new AlgorithmStub(feed);
             algorithm.SetLiveMode(true);
@@ -93,7 +92,7 @@ namespace QuantConnect.Tests.Engine.DataFeeds
 
             algorithm.PostInitialize();
 
-            var cancellationTokenSource = new CancellationTokenSource();
+            using var cancellationTokenSource = new CancellationTokenSource();
 
             Exception exceptionThrown = null;
 

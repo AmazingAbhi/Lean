@@ -16,7 +16,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Python.Runtime;
 using Newtonsoft.Json;
 using NodaTime;
 using NUnit.Framework;
@@ -645,6 +644,33 @@ namespace QuantConnect.Tests.Algorithm
             Assert.AreNotSame(unlinkedData, bitcoin);
         }
 
+        [TestCase(SecurityType.Equity)]
+        [TestCase(SecurityType.Index)]
+        [TestCase(SecurityType.Future)]
+        public void AddOptionContractWithDelistedUnderlyingThrows(SecurityType underlyingSecurityType)
+        {
+            var algorithm = Algorithm();
+            algorithm.SetStartDate(2007, 05, 25);
+
+            Security underlying = underlyingSecurityType switch
+            {
+                SecurityType.Equity => algorithm.AddEquity("SPY"),
+                SecurityType.Index => algorithm.AddIndex("SPX"),
+                SecurityType.Future => algorithm.AddFuture("ES"),
+                _ => throw new ArgumentException($"Invalid test underlying security type {underlyingSecurityType}")
+            };
+
+            underlying.IsDelisted = true;
+            // let's remove the underlying since it's delisted
+            algorithm.RemoveSecurity(underlying.Symbol);
+
+            var optionContractSymbol = Symbol.CreateOption(underlying.Symbol, Market.USA, OptionStyle.American, OptionRight.Call, 100,
+                new DateTime(2007, 06, 15));
+
+            var exception = Assert.Throws<ArgumentException>(() => algorithm.AddOptionContract(optionContractSymbol));
+            Assert.IsTrue(exception.Message.Contains("is delisted"), $"Unexpected exception message: {exception.Message}");
+        }
+
         private static SubscriptionDataConfig GetMatchingSubscription(QCAlgorithm algorithm, Symbol symbol, Type type)
         {
             // find a subscription matchin the requested type with a higher resolution than requested
@@ -685,14 +711,14 @@ namespace QuantConnect.Tests.Algorithm
                                     new Ticks(), new OptionChains(),
                                     new FuturesChains(), new Splits(),
                                     new Dividends(now), new Delistings(),
-                                    new SymbolChangedEvents(), now);
+                                    new SymbolChangedEvents(), new MarginInterestRates(), now);
                 var tradeBar1_2 = new TradeBar(now, underlyingSymbol, 2, 2, 2, 2, 2, TimeSpan.FromDays(1));
                 var slice2 = new Slice(now, new List<BaseData> { tradeBar1_2 },
                     new TradeBars(now), new QuoteBars(),
                     new Ticks(), new OptionChains(),
                     new FuturesChains(), new Splits(),
                     new Dividends(now), new Delistings(),
-                    new SymbolChangedEvents(), now);
+                    new SymbolChangedEvents(), new MarginInterestRates(), now);
                 return new[] { slice1, slice2 };
             }
         }

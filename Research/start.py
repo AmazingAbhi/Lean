@@ -32,8 +32,17 @@ from AlgorithmImports import *
 # Used by pythonNet
 AddReference("Fasterflect")
 
+Config.Reset()
 Initializer.Start()
 api = Initializer.GetSystemHandlers().Api
-algorithmHandlers = Initializer.GetAlgorithmHandlers()
+algorithmHandlers = Initializer.GetAlgorithmHandlers(researchMode=True)
 
-get_ipython().run_line_magic('matplotlib', 'inline')
+# Required to configure pythonpath with additional paths the user may have 
+# set in the config, like a project library.
+PythonInitializer.Initialize(False)
+
+try:
+    get_ipython().run_line_magic('matplotlib', 'inline')
+except NameError:
+    # can happen if start is triggered from python and not Ipython
+    pass

@@ -32,43 +32,36 @@ namespace QuantConnect.Packets
         /// <summary>
         /// User Id sending result packet
         /// </summary>
-        [JsonProperty(PropertyName = "iUserID")]
         public int UserId = 0;
 
         /// <summary>
         /// Project Id of the result packet
         /// </summary>
-        [JsonProperty(PropertyName = "iProjectID")]
         public int ProjectId = 0;
 
         /// <summary>
         /// User session Id who issued the result packet
         /// </summary>
-        [JsonProperty(PropertyName = "sSessionID")]
         public string SessionId = "";
 
         /// <summary>
         /// Live Algorithm Id (DeployId) for this result packet
         /// </summary>
-        [JsonProperty(PropertyName = "sDeployID")]
         public string DeployId = "";
 
         /// <summary>
         /// Compile Id algorithm which generated this result packet
         /// </summary>
-        [JsonProperty(PropertyName = "sCompileID")]
         public string CompileId = "";
 
         /// <summary>
         /// Result data object for this result packet
         /// </summary>
-        [JsonProperty(PropertyName = "oResults")]
         public LiveResult Results = new LiveResult();
 
         /// <summary>
         /// Processing time / running time for the live algorithm.
         /// </summary>
-        [JsonProperty(PropertyName = "dProcessingTime")]
         public double ProcessingTime = 0;
 
         /// <summary>
@@ -138,7 +131,7 @@ namespace QuantConnect.Packets
                 new Dictionary<string, Chart>(), new Dictionary<int, Order>(), new Dictionary<DateTime, decimal>(),
                 new Dictionary<string, Holding>(), new CashBook(), new Dictionary<string, string>(),
                 new SortedDictionary<string, string>(), new List<OrderEvent>(), new Dictionary<string, string>(),
-                new AlphaRuntimeStatistics())));
+                new AlgorithmConfiguration(), new Dictionary<string, string>())));
         }
     } // End Queue Packet:
 
@@ -153,7 +146,7 @@ namespace QuantConnect.Packets
         /// <summary>
         /// Holdings dictionary of algorithm holdings information
         /// </summary>
-        [JsonProperty(PropertyName = "Holdings", NullValueHandling = NullValueHandling.Ignore)]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public IDictionary<string, Holding> Holdings;
 
         /// <summary>
@@ -179,19 +172,19 @@ namespace QuantConnect.Packets
         /// <summary>
         /// Cash for the algorithm's live results.
         /// </summary>
-        [JsonProperty(PropertyName = "Cash", NullValueHandling = NullValueHandling.Ignore)]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public Dictionary<string, Cash> Cash;
 
         /// <summary>
         /// The algorithm's account currency
         /// </summary>
-        [JsonProperty(PropertyName = "AccountCurrency", NullValueHandling = NullValueHandling.Ignore)]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string AccountCurrency;
 
         /// <summary>
         /// The algorithm's account currency
         /// </summary>
-        [JsonProperty(PropertyName = "AccountCurrencySymbol", NullValueHandling = NullValueHandling.Ignore)]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string AccountCurrencySymbol;
 
         /// <summary>
@@ -203,18 +196,10 @@ namespace QuantConnect.Packets
         /// <summary>
         /// Constructor for the result class for dictionary objects
         /// </summary>
-        public LiveResult(LiveResultParameters parameters)
+        public LiveResult(LiveResultParameters parameters) : base(parameters)
         {
-            Charts = parameters.Charts;
-            Orders = parameters.Orders;
-            ProfitLoss = parameters.ProfitLoss;
-            Statistics = parameters.Statistics;
             Holdings = parameters.Holdings;
             CashBook = parameters.CashBook;
-            RuntimeStatistics = parameters.RuntimeStatistics;
-            OrderEvents = parameters.OrderEvents;
-            ServerStatistics = parameters.ServerStatistics;
-            AlphaRuntimeStatistics = parameters.AlphaRuntimeStatistics;
         }
     }
 } // End of Namespace:

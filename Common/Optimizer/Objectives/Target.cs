@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -27,8 +27,7 @@ namespace QuantConnect.Optimizer.Objectives
         /// <summary>
         /// Defines the direction of optimization, i.e. maximization or minimization
         /// </summary>
-        [JsonProperty("extremum")]
-        public Extremum Extremum { get; }
+        public Extremum Extremum { get; set; }
 
         /// <summary>
         /// Current value
@@ -49,16 +48,17 @@ namespace QuantConnect.Optimizer.Objectives
             Extremum = extremum;
         }
 
+        public Target()
+        {
+
+        }
+
         /// <summary>
         /// Pretty representation of this optimization target
         /// </summary>
         public override string ToString()
         {
-            if (TargetValue.HasValue)
-            {
-                return $"Target: {Target} TargetValue: {TargetValue.Value} at: {Current}";
-            }
-            return $"Target: {Target} at: {Current}";
+            return Messages.Target.ToString(this);
         }
 
         /// <summary>
@@ -70,7 +70,7 @@ namespace QuantConnect.Optimizer.Objectives
         {
             if (string.IsNullOrEmpty(jsonBacktestResult))
             {
-                throw new ArgumentNullException(nameof(jsonBacktestResult), "Target.MoveAhead: backtest result can not be null or empty.");
+                throw new ArgumentNullException(nameof(jsonBacktestResult), $"Target.MoveAhead(): {Messages.OptimizerObjectivesCommon.NullOrEmptyBacktestResult}");
             }
 
             var token = JObject.Parse(jsonBacktestResult).SelectToken(Target);

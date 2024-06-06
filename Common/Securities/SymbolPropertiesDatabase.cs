@@ -18,7 +18,6 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
-using QuantConnect.Logging;
 
 namespace QuantConnect.Securities
 {
@@ -46,7 +45,7 @@ namespace QuantConnect.Securities
             {
                 if (allEntries.ContainsKey(keyValuePair.Key))
                 {
-                    throw new DuplicateNameException($"Encountered duplicate key while processing file: {file}. Key: {keyValuePair.Key}");
+                    throw new DuplicateNameException(Messages.SymbolPropertiesDatabase.DuplicateKeyInFile(file, keyValuePair.Key));
                 }
                 // we wildcard the market, so per security type and symbol we will keep the *first* instance
                 // this allows us to fetch deterministically, in O(1), an entry without knowing the market, see 'TryGetMarket()'
@@ -215,8 +214,7 @@ namespace QuantConnect.Securities
             {
                 if (_dataFolderSymbolPropertiesDatabase == null)
                 {
-                    var directory = Path.Combine(Globals.DataFolder, "symbol-properties");
-                    _dataFolderSymbolPropertiesDatabase = new SymbolPropertiesDatabase(Path.Combine(directory, "symbol-properties-database.csv"));
+                    _dataFolderSymbolPropertiesDatabase = new SymbolPropertiesDatabase(Path.Combine(Globals.GetDataFolderPath("symbol-properties"), "symbol-properties-database.csv"));
                 }
             }
             return _dataFolderSymbolPropertiesDatabase;
@@ -231,7 +229,7 @@ namespace QuantConnect.Securities
         {
             if (!File.Exists(file))
             {
-                throw new FileNotFoundException("Unable to locate symbol properties file: " + file);
+                throw new FileNotFoundException(Messages.SymbolPropertiesDatabase.DatabaseFileNotFound(file));
             }
 
             // skip the first header line, also skip #'s as these are comment lines
@@ -278,7 +276,8 @@ namespace QuantConnect.Securities
                 lotSize: csv[7].ToDecimal(),
                 marketTicker: HasValidValue(csv, 8) ? csv[8] : string.Empty,
                 minimumOrderSize: HasValidValue(csv, 9) ? csv[9].ToDecimal() : null,
-                priceMagnifier: HasValidValue(csv, 10) ? csv[10].ToDecimal() : 1);
+                priceMagnifier: HasValidValue(csv, 10) ? csv[10].ToDecimal() : 1,
+                strikeMultiplier: HasValidValue(csv, 11) ? csv[11].ToDecimal() : 1);
         }
 
         private static bool HasValidValue(string[] array, uint position)

@@ -15,18 +15,18 @@ from AlgorithmImports import *
 from OptionPriceModelForOptionStylesBaseRegressionAlgorithm import OptionPriceModelForOptionStylesBaseRegressionAlgorithm
 
 ### <summary>
-### Regression algorithm excersizing an equity covered European style option, using an option price model
+### Regression algorithm exercising an equity covered European style option, using an option price model
 ### that does not support European style options and asserting that the option price model is not used.
 ### </summary>
 class OptionPriceModelForUnsupportedEuropeanOptionRegressionAlgorithm(OptionPriceModelForOptionStylesBaseRegressionAlgorithm):
-    def Initialize(self):
-        self.SetStartDate(2021, 1, 14)
-        self.SetEndDate(2021, 1, 14)
+    def initialize(self):
+        self.set_start_date(2021, 1, 14)
+        self.set_end_date(2021, 1, 14)
 
-        option = self.AddIndexOption("SPX", Resolution.Hour)
+        option = self.add_index_option("SPX", Resolution.HOUR)
         # BaroneAdesiWhaley model does not support European style options
-        option.PriceModel = OptionPriceModels.BaroneAdesiWhaley()
+        option.price_model = OptionPriceModels.barone_adesi_whaley()
 
-        self.SetWarmup(7, Resolution.Daily)
+        self.set_warmup(7, Resolution.DAILY)
 
-        self.Init(option, optionStyleIsSupported=False)
+        self.init(option, option_style_is_supported=False)

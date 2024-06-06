@@ -20,6 +20,7 @@ using System.Globalization;
 using System.Linq;
 using NodaTime;
 using NUnit.Framework;
+using Python.Runtime;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
 using QuantConnect.Logging;
@@ -602,13 +603,67 @@ namespace QuantConnect.Tests.Common.Scheduling
             Assert.AreEqual(nowUtc.Date, nowNewYork.AddDays(1));
         }
 
+        [Test]
+        public void SetFuncDateRuleInPythonWorksAsExpected()
+        {
+            using (Py.GIL())
+            {
+                var pythonModule = PyModule.FromString("testModule", @"
+from AlgorithmImports import *
+
+def CustomDateRule(start, end):
+    return [start + (end - start)/2]
+");
+                dynamic pythonCustomDateRule = pythonModule.GetAttr("CustomDateRule");
+                var funcDateRule = new FuncDateRule("PythonFuncDateRule", pythonCustomDateRule);
+                Assert.AreEqual("PythonFuncDateRule", funcDateRule.Name);
+                Assert.AreEqual(new DateTime(2023, 1, 16, 12, 0, 0), funcDateRule.GetDates(new DateTime(2023, 1, 1), new DateTime(2023, 2, 1)).First());
+            }
+        }
+
+        [Test]
+        public void SetFuncDateRuleInPythonWorksAsExpectedWithCSharpFunc()
+        {
+            using (Py.GIL())
+            {
+                var pythonModule = PyModule.FromString("testModule", @"
+from AlgorithmImports import *
+
+def GetFuncDateRule(csharpFunc):
+    return FuncDateRule(""CSharp"", csharpFunc)
+");
+                dynamic getFuncDateRule = pythonModule.GetAttr("GetFuncDateRule");
+                Func<DateTime, DateTime, IEnumerable<DateTime>> csharpFunc = (start, end) => { return new List<DateTime>() { new DateTime(2001, 3, 18) }; };
+                var funcDateRule = getFuncDateRule(csharpFunc);
+                Assert.AreEqual("CSharp", (funcDateRule.Name as PyObject).GetAndDispose<string>());
+                Assert.AreEqual(new DateTime(2001, 3, 18),
+                    (funcDateRule.GetDates(new DateTime(2023, 1, 1), new DateTime(2023, 2, 1)) as PyObject).GetAndDispose<List<DateTime>>().First());
+            }
+        }
+
+        [Test]
+        public void SetFuncDateRuleInPythonFailsWhenDateRuleIsInvalid()
+        {
+            using (Py.GIL())
+            {
+                var pythonModule = PyModule.FromString("testModule", @"
+from AlgorithmImports import *
+
+wrongCustomDateRule = 1
+");
+                dynamic pythonCustomDateRule = pythonModule.GetAttr("wrongCustomDateRule");
+                Assert.Throws<ArgumentException>(() => new FuncDateRule("PythonFuncDateRule", pythonCustomDateRule));
+            }
+        }
+
         private static DateRules GetDateRules()
         {
+            var mhdb = MarketHoursDatabase.FromDataFolder();
             var timeKeeper = new TimeKeeper(_utcNow, new List<DateTimeZone>());
             var manager = new SecurityManager(timeKeeper);
 
             // Add SPY for Equity testing
-            var securityExchangeHours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.USA, null, SecurityType.Equity);
+            var securityExchangeHours = mhdb.GetExchangeHours(Market.USA, null, SecurityType.Equity);
             var config = new SubscriptionDataConfig(typeof(TradeBar), Symbols.SPY, Resolution.Daily, TimeZones.NewYork, TimeZones.NewYork, true, false, false);
             manager.Add(
                 Symbols.SPY,
@@ -624,7 +679,7 @@ namespace QuantConnect.Tests.Common.Scheduling
             );
 
             // Add BTC for Crypto testing
-            securityExchangeHours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.Bitfinex, Symbols.BTCUSD, SecurityType.Crypto);
+            securityExchangeHours = mhdb.GetExchangeHours(Market.Bitfinex, Symbols.BTCUSD, SecurityType.Crypto);
             config = new SubscriptionDataConfig(typeof(TradeBar), Symbols.BTCUSD, Resolution.Daily, TimeZones.NewYork, TimeZones.NewYork, true, false, false);
             manager.Add(
                 Symbols.BTCUSD,
@@ -640,7 +695,7 @@ namespace QuantConnect.Tests.Common.Scheduling
             );
 
             // Add EURUSD for Forex testing
-            securityExchangeHours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.FXCM, Symbols.EURUSD, SecurityType.Forex);
+            securityExchangeHours = mhdb.GetExchangeHours(Market.FXCM, Symbols.EURUSD, SecurityType.Forex);
             config = new SubscriptionDataConfig(typeof(TradeBar), Symbols.EURUSD, Resolution.Daily, TimeZones.NewYork, TimeZones.NewYork, true, false, false);
             manager.Add(
                 Symbols.EURUSD,
@@ -656,7 +711,7 @@ namespace QuantConnect.Tests.Common.Scheduling
             );
 
             // Add Fut_SPY_Feb19_2016 for testing
-            securityExchangeHours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.CME, Symbols.Fut_SPY_Feb19_2016, SecurityType.Future);
+            securityExchangeHours = mhdb.GetExchangeHours(Market.CME, Symbols.Fut_SPY_Feb19_2016, SecurityType.Future);
             config = new SubscriptionDataConfig(typeof(TradeBar), Symbols.Fut_SPY_Feb19_2016, Resolution.Daily, TimeZones.NewYork, TimeZones.NewYork, true, false, false);
             manager.Add(
                 Symbols.Fut_SPY_Feb19_2016,
@@ -671,7 +726,7 @@ namespace QuantConnect.Tests.Common.Scheduling
                 )
             );
 
-            var rules = new DateRules(manager, TimeZones.NewYork);
+            var rules = new DateRules(manager, TimeZones.NewYork, mhdb);
             return rules;
         }
     }

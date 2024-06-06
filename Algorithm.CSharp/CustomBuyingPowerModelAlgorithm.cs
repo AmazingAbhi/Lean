@@ -80,6 +80,12 @@ namespace QuantConnect.Algorithm.CSharp
                 // this model never allows a lack of funds get in the way of buying securities
                 return parameters.Sufficient();
             }
+
+            // Let's always return 0 as the maintenance margin so we avoid margin call orders
+            public override MaintenanceMargin GetMaintenanceMargin(MaintenanceMarginParameters parameters)
+            {
+                return new MaintenanceMargin(0);
+            }
         }
 
         /// <summary>
@@ -107,48 +113,33 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "1"},
+            {"Total Orders", "1"},
             {"Average Win", "0%"},
             {"Average Loss", "0%"},
             {"Compounding Annual Return", "4775.196%"},
             {"Drawdown", "21.600%"},
             {"Expectancy", "0"},
+            {"Start Equity", "100000"},
+            {"End Equity", "138618.81"},
             {"Net Profit", "38.619%"},
-            {"Sharpe Ratio", "14.33"},
+            {"Sharpe Ratio", "14.322"},
+            {"Sortino Ratio", "26.701"},
             {"Probabilistic Sharpe Ratio", "75.756%"},
             {"Loss Rate", "0%"},
             {"Win Rate", "0%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "10.389"},
+            {"Alpha", "10.447"},
             {"Beta", "8.754"},
             {"Annual Standard Deviation", "0.95"},
             {"Annual Variance", "0.903"},
             {"Information Ratio", "15.703"},
             {"Tracking Error", "0.844"},
-            {"Treynor Ratio", "1.555"},
+            {"Treynor Ratio", "1.554"},
             {"Total Fees", "$30.00"},
-            {"Estimated Strategy Capacity", "$22000000.00"},
+            {"Estimated Strategy Capacity", "$150000000.00"},
             {"Lowest Capacity Asset", "SPY R735QTJ8XC9X"},
-            {"Fitness Score", "0.395"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "98.148"},
-            {"Return Over Maximum Drawdown", "384.626"},
-            {"Portfolio Turnover", "0.395"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "eba70a03119f2e8fe526d1092fbc36d0"}
+            {"Portfolio Turnover", "26.62%"},
+            {"OrderListHash", "c5ca1a8b0ce57cfeadd9eddf8abdd80c"}
         };
     }
 }

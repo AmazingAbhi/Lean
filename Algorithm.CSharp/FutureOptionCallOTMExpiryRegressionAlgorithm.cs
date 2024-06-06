@@ -71,6 +71,7 @@ namespace QuantConnect.Algorithm.CSharp
                 throw new Exception($"Contract {_expectedContract} was not found in the chain");
             }
 
+            // Place order after regular market opens
             Schedule.On(DateRules.Tomorrow, TimeRules.AfterMarketOpen(_es19m20, 1), () =>
             {
                 MarketOrder(_esOption, 1);
@@ -175,7 +176,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 644315;
+        public long DataPoints => 212195;
 
         /// <summary>
         /// Data Points count of the algorithm history
@@ -187,48 +188,33 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "2"},
+            {"Total Orders", "2"},
             {"Average Win", "0%"},
-            {"Average Loss", "-4.02%"},
-            {"Compounding Annual Return", "-8.099%"},
-            {"Drawdown", "4.000%"},
+            {"Average Loss", "-3.85%"},
+            {"Compounding Annual Return", "-7.754%"},
+            {"Drawdown", "4.300%"},
             {"Expectancy", "-1"},
-            {"Net Profit", "-4.027%"},
-            {"Sharpe Ratio", "-1.175"},
-            {"Probabilistic Sharpe Ratio", "0.009%"},
+            {"Start Equity", "100000"},
+            {"End Equity", "96148.58"},
+            {"Net Profit", "-3.851%"},
+            {"Sharpe Ratio", "-1.221"},
+            {"Sortino Ratio", "0"},
+            {"Probabilistic Sharpe Ratio", "0.131%"},
             {"Loss Rate", "100%"},
             {"Win Rate", "0%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "-0.056"},
-            {"Beta", "0.002"},
-            {"Annual Standard Deviation", "0.047"},
-            {"Annual Variance", "0.002"},
-            {"Information Ratio", "-0.206"},
-            {"Tracking Error", "0.376"},
-            {"Treynor Ratio", "-23.833"},
-            {"Total Fees", "$1.85"},
-            {"Estimated Strategy Capacity", "$99000000.00"},
+            {"Alpha", "-0.063"},
+            {"Beta", "0.003"},
+            {"Annual Standard Deviation", "0.052"},
+            {"Annual Variance", "0.003"},
+            {"Information Ratio", "-0.198"},
+            {"Tracking Error", "0.377"},
+            {"Treynor Ratio", "-23.06"},
+            {"Total Fees", "$1.42"},
+            {"Estimated Strategy Capacity", "$180000000.00"},
             {"Lowest Capacity Asset", "ES XFH59UPHGV9G|ES XFH59UK0MYO1"},
-            {"Fitness Score", "0"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "-0.184"},
-            {"Return Over Maximum Drawdown", "-2.013"},
-            {"Portfolio Turnover", "0"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "498c9958139b70d42ebecc65c4eceeee"}
+            {"Portfolio Turnover", "0.02%"},
+            {"OrderListHash", "05037896a5cd73b851835dbec26518c6"}
         };
     }
 }

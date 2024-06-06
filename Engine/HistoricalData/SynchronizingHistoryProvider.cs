@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -38,6 +38,11 @@ namespace QuantConnect.Lean.Engine.HistoricalData
         private int _dataPointCount;
 
         /// <summary>
+        /// The algorithm settings instance to use
+        /// </summary>
+        public IAlgorithmSettings AlgorithmSettings { get; set; } = new AlgorithmSettings();
+
+        /// <summary>
         /// Gets the total number of data points emitted by this history provider
         /// </summary>
         public override int DataPointCount => _dataPointCount;
@@ -49,6 +54,8 @@ namespace QuantConnect.Lean.Engine.HistoricalData
         {
             // required by TimeSlice.Create, but we don't need it's behavior
             var frontier = DateTime.MinValue;
+            // never changes, there's no selection during a history request
+            var universeSelectionData = new Dictionary<Universe, BaseDataCollection>();
             var timeSliceFactory = new TimeSliceFactory(sliceTimeZone);
             while (true)
             {
@@ -63,10 +70,18 @@ namespace QuantConnect.Lean.Engine.HistoricalData
                         continue;
                     }
 
-                    var packet = new DataFeedPacket(subscription.Security, subscription.Configuration);
-
+                    DataFeedPacket packet = null;
                     while (subscription.Current.EmitTimeUtc <= frontier)
                     {
+                        if (packet == null)
+                        {
+                            // for performance, lets be selfish about creating a new instance
+                            packet = new DataFeedPacket(subscription.Security, subscription.Configuration);
+
+                            // only add if we have data
+                            data.Add(packet);
+                        }
+
                         packet.Add(subscription.Current.Data);
                         Interlocked.Increment(ref _dataPointCount);
                         if (!subscription.MoveNext())
@@ -74,8 +89,6 @@ namespace QuantConnect.Lean.Engine.HistoricalData
                             break;
                         }
                     }
-                    // only add if we have data
-                    if (packet.Count != 0) data.Add(packet);
                     // update our early bird ticks (next frontier time)
                     if (subscription.Current != null)
                     {
@@ -87,7 +100,7 @@ namespace QuantConnect.Lean.Engine.HistoricalData
                 if (data.Count != 0)
                 {
                     // reuse the slice construction code from TimeSlice.Create
-                    yield return timeSliceFactory.Create(frontier, data, SecurityChanges.None, new Dictionary<Universe, BaseDataCollection>()).Slice;
+                    yield return timeSliceFactory.Create(frontier, data, SecurityChanges.None, universeSelectionData).Slice;
                 }
 
                 // end of subscriptions, after we emit, else we might drop a data point
@@ -121,6 +134,12 @@ namespace QuantConnect.Lean.Engine.HistoricalData
 
             var reader = history.GetEnumerator();
 
+            var useDailyStrictEndTimes = LeanData.UseDailyStrictEndTimes(AlgorithmSettings, request, config.Symbol, config.Increment);
+            if (useDailyStrictEndTimes)
+            {
+                reader = new StrictDailyEndTimesEnumerator(reader, request.ExchangeHours);
+            }
+
             // optionally apply fill forward behavior
             if (request.FillForwardResolution.HasValue)
             {
@@ -135,12 +154,12 @@ namespace QuantConnect.Lean.Engine.HistoricalData
                 }
 
                 var readOnlyRef = Ref.CreateReadOnly(() => request.FillForwardResolution.Value.ToTimeSpan());
-                reader = new FillForwardEnumerator(reader, security.Exchange, readOnlyRef, request.IncludeExtendedMarketHours, end, config.Increment, config.DataTimeZone);
+                reader = new FillForwardEnumerator(reader, security.Exchange, readOnlyRef, request.IncludeExtendedMarketHours, end, config.Increment, config.DataTimeZone, useDailyStrictEndTimes);
             }
 
             var subscriptionRequest = new SubscriptionRequest(false, null, security, config, request.StartTimeUtc, request.EndTimeUtc);
 
-            return SubscriptionUtils.Create(subscriptionRequest, reader);
+            return SubscriptionUtils.Create(subscriptionRequest, reader, AlgorithmSettings.DailyStrictEndTimeEnabled);
         }
     }
 }

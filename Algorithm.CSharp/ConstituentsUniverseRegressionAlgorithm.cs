@@ -32,7 +32,7 @@ namespace QuantConnect.Algorithm.CSharp
         private readonly Symbol _fb = QuantConnect.Symbol.Create("FB", SecurityType.Equity, Market.USA);
         private int _step;
 
-        /// <summary>
+    /// <summary>
         /// Initialise the data and resolution required, as well as the cash and start-end dates for your algorithm. All algorithms must initialized.
         /// </summary>
         public override void Initialize()
@@ -168,7 +168,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 59;
+        public long DataPoints => 52;
 
         /// <summary>
         /// Data Points count of the algorithm history
@@ -180,48 +180,33 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "2"},
+            {"Total Orders", "2"},
             {"Average Win", "0%"},
             {"Average Loss", "-0.54%"},
             {"Compounding Annual Return", "-32.671%"},
             {"Drawdown", "0.900%"},
             {"Expectancy", "-1"},
+            {"Start Equity", "100000"},
+            {"End Equity", "99459.59"},
             {"Net Profit", "-0.540%"},
-            {"Sharpe Ratio", "-3.349"},
+            {"Sharpe Ratio", "-3.436"},
+            {"Sortino Ratio", "0"},
             {"Probabilistic Sharpe Ratio", "25.715%"},
             {"Loss Rate", "100%"},
             {"Win Rate", "0%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "-0.724"},
+            {"Alpha", "-0.73"},
             {"Beta", "0.22"},
             {"Annual Standard Deviation", "0.086"},
             {"Annual Variance", "0.007"},
             {"Information Ratio", "-12.125"},
             {"Tracking Error", "0.187"},
-            {"Treynor Ratio", "-1.304"},
+            {"Treynor Ratio", "-1.338"},
             {"Total Fees", "$32.32"},
             {"Estimated Strategy Capacity", "$95000000.00"},
             {"Lowest Capacity Asset", "AAPL R735QTJ8XC9X"},
-            {"Fitness Score", "0.1"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "79228162514264337593543950335"},
-            {"Return Over Maximum Drawdown", "-36.199"},
-            {"Portfolio Turnover", "0.2"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "3b9c93151bf191a82529e6e915961356"}
+            {"Portfolio Turnover", "20.06%"},
+            {"OrderListHash", "2271d307c23224ed7abc7fc852a51f24"}
         };
     }
 }

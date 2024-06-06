@@ -19,6 +19,7 @@ using QuantConnect.Interfaces;
 using QuantConnect.Securities;
 using System.Collections.Generic;
 using System.Linq;
+using QuantConnect.Orders;
 
 namespace QuantConnect.Algorithm.CSharp
 {
@@ -27,6 +28,7 @@ namespace QuantConnect.Algorithm.CSharp
     /// </summary>
     public class DelistingFutureOptionRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
     {
+        protected virtual Resolution Resolution => Resolution.Minute;
         private bool _traded;
         private int _lastMonth;
 
@@ -36,11 +38,15 @@ namespace QuantConnect.Algorithm.CSharp
             SetEndDate(2013, 1, 1);
             SetCash(10000000);
 
-            var dc = AddFuture(Futures.Dairy.ClassIIIMilk, Resolution.Minute, Market.CME);
+            var dc = AddFuture(Futures.Dairy.ClassIIIMilk, Resolution, Market.CME);
             dc.SetFilter(1, 120);
 
             AddFutureOption(dc.Symbol, universe => universe.Strikes(-2, 2));
             _lastMonth = -1;
+
+            // This is required to prevent the algorithm from automatically delisting the underlying. Without this, future options will be subscribed
+            // with resolution default to Minute insted of this.Resolution. This could be replaced after GH issue #6491 is implemented.
+            UniverseSettings.Resolution = Resolution;
         }
 
         public override void OnData(Slice data)
@@ -101,7 +107,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 15228955;
+        public virtual long DataPoints => 4632713;
 
         /// <summary>
         /// Data Points count of the algorithm history
@@ -111,50 +117,35 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// This is used by the regression test system to indicate what the expected statistics are from running the algorithm
         /// </summary>
-        public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
+        public virtual Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "16"},
+            {"Total Orders", "16"},
             {"Average Win", "0.01%"},
             {"Average Loss", "-0.02%"},
             {"Compounding Annual Return", "-0.111%"},
             {"Drawdown", "0.100%"},
             {"Expectancy", "-0.678"},
+            {"Start Equity", "10000000"},
+            {"End Equity", "9988860.24"},
             {"Net Profit", "-0.111%"},
-            {"Sharpe Ratio", "-0.967"},
+            {"Sharpe Ratio", "-10.413"},
+            {"Sortino Ratio", "-0.961"},
             {"Probabilistic Sharpe Ratio", "0.000%"},
             {"Loss Rate", "80%"},
             {"Win Rate", "20%"},
             {"Profit-Loss Ratio", "0.61"},
-            {"Alpha", "-0.001"},
+            {"Alpha", "-0.008"},
             {"Beta", "-0.001"},
             {"Annual Standard Deviation", "0.001"},
             {"Annual Variance", "0"},
-            {"Information Ratio", "-1.075"},
+            {"Information Ratio", "-1.076"},
             {"Tracking Error", "0.107"},
-            {"Treynor Ratio", "1.353"},
-            {"Total Fees", "$14.80"},
-            {"Estimated Strategy Capacity", "$860000000.00"},
-            {"Lowest Capacity Asset", "DC V5E8P9SH0U0X"},
-            {"Fitness Score", "0"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "-0.128"},
-            {"Return Over Maximum Drawdown", "-0.995"},
-            {"Portfolio Turnover", "0"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "d10e8665214344369e3e8f1c49dbdd67"}
+            {"Treynor Ratio", "14.588"},
+            {"Total Fees", "$19.76"},
+            {"Estimated Strategy Capacity", "$1300000000.00"},
+            {"Lowest Capacity Asset", "DC V5E8PHPRCHJ8|DC V5E8P9SH0U0X"},
+            {"Portfolio Turnover", "0.00%"},
+            {"OrderListHash", "7f06f736e2f1294916fb2485519021a2"}
         };
     }
 }

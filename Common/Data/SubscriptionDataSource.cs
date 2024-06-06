@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -14,8 +14,8 @@
 */
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
+using System.Collections.Generic;
 using static QuantConnect.StringExtensions;
 
 namespace QuantConnect.Data
@@ -25,6 +25,8 @@ namespace QuantConnect.Data
     /// </summary>
     public class SubscriptionDataSource : IEquatable<SubscriptionDataSource>
     {
+        private readonly static IReadOnlyList<KeyValuePair<string, string>> _empty = new List<KeyValuePair<string, string>>();
+
         /// <summary>
         /// Identifies where to get the subscription's data from
         /// </summary>
@@ -44,6 +46,15 @@ namespace QuantConnect.Data
         /// Gets the header values to be used in the web request.
         /// </summary>
         public readonly IReadOnlyList<KeyValuePair<string, string>> Headers;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SubscriptionDataSource"/> class.
+        /// </summary>
+        /// <param name="source">The subscription's data source location</param>
+        public SubscriptionDataSource(string source)
+            : this(source, GetDefaultSubscriptionTransportMedium(source), FileFormat.Csv)
+        {
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SubscriptionDataSource"/> class.
@@ -79,7 +90,7 @@ namespace QuantConnect.Data
             Source = source;
             Format = format;
             TransportMedium = transportMedium;
-            Headers = (headers?.ToList() ?? new List<KeyValuePair<string, string>>()).AsReadOnly();
+            Headers = headers?.ToList() ?? _empty;
         }
 
         /// <summary>
@@ -160,6 +171,19 @@ namespace QuantConnect.Data
         public override string ToString()
         {
             return Invariant($"{TransportMedium}: {Format} {Source}");
+        }
+
+        /// <summary>
+        /// Gets the default transport medium for the specified source
+        /// </summary>
+        private static SubscriptionTransportMedium GetDefaultSubscriptionTransportMedium(string source)
+        {
+            if (source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return SubscriptionTransportMedium.RemoteFile;
+            }
+            return SubscriptionTransportMedium.LocalFile;
         }
     }
 }

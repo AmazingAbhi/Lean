@@ -39,8 +39,8 @@ namespace QuantConnect.Algorithm.CSharp
             SetStartDate(2013, 10, 08);
             SetEndDate(2013, 10, 10);
 
-            AddEquity("SPY", Resolution.Minute, fillDataForward: false);
-            AddCrypto("BTCUSD", Resolution.Hour, market: Market.Bitfinex, fillDataForward: false);
+            AddEquity("SPY", Resolution.Minute, fillForward: false);
+            AddCrypto("BTCUSD", Resolution.Hour, market: Market.Bitfinex, fillForward: false);
 
             SetWarmUp(24, Resolution.Hour);
         }
@@ -75,7 +75,8 @@ namespace QuantConnect.Algorithm.CSharp
             {
                 throw new Exception("Did not get any TradeBar during warmup");
             }
-            if (!_equityGotQuoteBars)
+            // we don't have quote bars for equity in daily/hour resolutions
+            if (!_equityGotQuoteBars && !Settings.WarmupResolution.HasValue)
             {
                 throw new Exception("Did not get any QuoteBar during warmup");
             }
@@ -98,60 +99,45 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 5298;
+        public virtual long DataPoints => 3763;
 
         /// <summary>
         /// Data Points count of the algorithm history
         /// </summary>
-        public int AlgorithmHistoryDataPoints => 41;
+        public virtual int AlgorithmHistoryDataPoints => 41;
 
         /// <summary>
         /// This is used by the regression test system to indicate what the expected statistics are from running the algorithm
         /// </summary>
-        public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
+        public virtual Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "1"},
+            {"Total Orders", "1"},
             {"Average Win", "0%"},
             {"Average Loss", "0%"},
             {"Compounding Annual Return", "106.090%"},
             {"Drawdown", "0.600%"},
             {"Expectancy", "0"},
+            {"Start Equity", "100000.0"},
+            {"End Equity", "100596.13"},
             {"Net Profit", "0.596%"},
-            {"Sharpe Ratio", "124.4"},
+            {"Sharpe Ratio", "123.324"},
+            {"Sortino Ratio", "0"},
             {"Probabilistic Sharpe Ratio", "0%"},
             {"Loss Rate", "0%"},
             {"Win Rate", "0%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "0.402"},
+            {"Alpha", "0.394"},
             {"Beta", "0.029"},
             {"Annual Standard Deviation", "0.007"},
             {"Annual Variance", "0"},
             {"Information Ratio", "-65.071"},
             {"Tracking Error", "0.236"},
-            {"Treynor Ratio", "30.193"},
+            {"Treynor Ratio", "29.932"},
             {"Total Fees", "$0.00"},
             {"Estimated Strategy Capacity", "$3000.00"},
             {"Lowest Capacity Asset", "BTCUSD E3"},
-            {"Fitness Score", "0.033"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "79228162514264337593543950335"},
-            {"Return Over Maximum Drawdown", "79228162514264337593543950335"},
-            {"Portfolio Turnover", "0.033"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "68470054afda2c86f2fdd4b88cd95074"}
+            {"Portfolio Turnover", "9.97%"},
+            {"OrderListHash", "98661718a82110916cdeceed756c5d37"}
         };
     }
 }

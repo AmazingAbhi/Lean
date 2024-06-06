@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NodaTime;
 using NUnit.Framework;
+using Python.Runtime;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
 using QuantConnect.Scheduling;
@@ -117,6 +118,37 @@ namespace QuantConnect.Tests.Common.Scheduling
             var rules = GetFutureTimeRules(TimeZones.Utc);
             var rule = rules.AfterMarketOpen(Symbols.ES_Future_Chain, 0);
             var times = rule.CreateUtcEventTimes(new[] {
+                new DateTime(2022, 01, 03),
+                new DateTime(2022, 01, 04),
+                new DateTime(2022, 01, 05),
+                new DateTime(2022, 01, 06),
+                new DateTime(2022, 01, 07),
+                new DateTime(2022, 01, 10)
+            });
+
+            var expectedMarketOpenDates = new[] {
+                new DateTime(2022, 01, 03, 14, 30, 0),
+                new DateTime(2022, 01, 04, 14, 30, 0),
+                new DateTime(2022, 01, 05, 14, 30, 0),
+                new DateTime(2022, 01, 06, 14, 30, 0),
+                new DateTime(2022, 01, 07, 14, 30, 0),
+                new DateTime(2022, 01, 10, 14, 30, 0)
+            };
+            int count = 0;
+            foreach (var time in times)
+            {
+                Assert.AreEqual(expectedMarketOpenDates[count], time);
+                count++;
+            }
+            Assert.AreEqual(6, count);
+        }
+
+        [Test]
+        public void ExtendedMarketOpenNoDeltaForContinuousSchedules()
+        {
+            var rules = GetFutureTimeRules(TimeZones.Utc, true);
+            var rule = rules.AfterMarketOpen(Symbols.ES_Future_Chain, 0, true);
+            var times = rule.CreateUtcEventTimes(new[] {
                 new DateTime(2022, 01, 01),
                 new DateTime(2022, 01, 02),
                 new DateTime(2022, 01, 03),
@@ -130,11 +162,10 @@ namespace QuantConnect.Tests.Common.Scheduling
 
             var expectedMarketOpenDates = new[] {
                 new DateTime(2022, 01, 02, 23, 0, 0),
-                new DateTime(2022, 01, 03, 21, 30, 0),
-                new DateTime(2022, 01, 04, 21, 30, 0),
-                new DateTime(2022, 01, 05, 21, 30, 0),
-                new DateTime(2022, 01, 06, 21, 30, 0),
-                new DateTime(2022, 01, 07, 21, 30, 0),
+                new DateTime(2022, 01, 03, 23, 0, 0),
+                new DateTime(2022, 01, 04, 23, 0, 0),
+                new DateTime(2022, 01, 05, 23, 0, 0),
+                new DateTime(2022, 01, 06, 23, 0, 0),
                 new DateTime(2022, 01, 09, 23, 0, 0)
             };
             int count = 0;
@@ -143,7 +174,7 @@ namespace QuantConnect.Tests.Common.Scheduling
                 Assert.AreEqual(expectedMarketOpenDates[count], time);
                 count++;
             }
-            Assert.AreEqual(7, count);
+            Assert.AreEqual(6, count);
         }
 
         [Test]
@@ -298,11 +329,65 @@ namespace QuantConnect.Tests.Common.Scheduling
             Assert.AreEqual(nowUtc, nowNewYork);
         }
 
+        [Test]
+        public void SetFuncTimeRuleInPythonWorksAsExpected()
+        {
+            using (Py.GIL())
+            {
+                var pythonModule = PyModule.FromString("testModule", @"
+from AlgorithmImports import *
+
+def CustomTimeRule(dates):
+    return [dates[0] + timedelta(days=1)]
+");
+                dynamic pythonCustomTimeRule = pythonModule.GetAttr("CustomTimeRule");
+                var funcTimeRule = new FuncTimeRule("PythonFuncTimeRule", pythonCustomTimeRule);
+                Assert.AreEqual("PythonFuncTimeRule", funcTimeRule.Name);
+                Assert.AreEqual(new DateTime(2023, 1, 2, 0, 0, 0), funcTimeRule.CreateUtcEventTimes(new List<DateTime>() { new DateTime(2023, 1, 1) }).First());
+            }
+        }
+
+        [Test]
+        public void SetFuncTimeRuleInPythonWorksAsExpectedWithCSharpFunc()
+        {
+            using (Py.GIL())
+            {
+                var pythonModule = PyModule.FromString("testModule", @"
+from AlgorithmImports import *
+
+def GetFuncTimeRule(csharpFunc):
+    return FuncTimeRule(""CSharp"", csharpFunc)
+");
+                dynamic getFuncTimeRule = pythonModule.GetAttr("GetFuncTimeRule");
+                Func<IEnumerable<DateTime>, IEnumerable<DateTime>> csharpFunc = (dates) => { return new List<DateTime>() { new DateTime(2001, 3, 18) }; };
+                var funcTimeRule = getFuncTimeRule(csharpFunc);
+                Assert.AreEqual("CSharp", (funcTimeRule.Name as PyObject).GetAndDispose<string>());
+                Assert.AreEqual(new DateTime(2001, 3, 18),
+                    (funcTimeRule.CreateUtcEventTimes(new List<DateTime>() { new DateTime(2023, 1, 1) }) as PyObject).GetAndDispose<List<DateTime>>().First());
+            }
+        }
+
+        [Test]
+        public void SetFuncTimeRuleInPythonFailsWhenInvalidTimeRule()
+        {
+            using (Py.GIL())
+            {
+                var pythonModule = PyModule.FromString("testModule", @"
+from AlgorithmImports import *
+
+wrongCustomTimeRule = ""hello""
+");
+                dynamic pythonCustomTimeRule = pythonModule.GetAttr("wrongCustomTimeRule");
+                Assert.Throws<ArgumentException>(() => new FuncTimeRule("PythonFuncTimeRule", pythonCustomTimeRule));
+            }
+        }
+
         private static TimeRules GetTimeRules(DateTimeZone dateTimeZone)
         {
             var timeKeeper = new TimeKeeper(_utcNow, new List<DateTimeZone>());
             var manager = new SecurityManager(timeKeeper);
-            var marketHourDbEntry = MarketHoursDatabase.FromDataFolder().GetEntry(Market.USA, (string)null, SecurityType.Equity);
+            var mhdb = MarketHoursDatabase.FromDataFolder();
+            var marketHourDbEntry = mhdb.GetEntry(Market.USA, (string)null, SecurityType.Equity);
             var securityExchangeHours = marketHourDbEntry.ExchangeHours;
             var config = new SubscriptionDataConfig(typeof(TradeBar), Symbols.SPY, Resolution.Daily, marketHourDbEntry.DataTimeZone, securityExchangeHours.TimeZone, true, false, false);
             manager.Add(
@@ -317,17 +402,19 @@ namespace QuantConnect.Tests.Common.Scheduling
                     new SecurityCache()
                 )
             );
-            var rules = new TimeRules(manager, dateTimeZone);
+            var rules = new TimeRules(manager, dateTimeZone, mhdb);
             return rules;
         }
 
-        private static TimeRules GetFutureTimeRules(DateTimeZone dateTimeZone)
+        private static TimeRules GetFutureTimeRules(DateTimeZone dateTimeZone, bool extendedMarket = false)
         {
             var timeKeeper = new TimeKeeper(_utcNow, new List<DateTimeZone>());
             var manager = new SecurityManager(timeKeeper);
-            var marketHourDbEntry = MarketHoursDatabase.FromDataFolder().GetEntry(Market.CME, "ES", SecurityType.Future);
+            var mhdb = MarketHoursDatabase.FromDataFolder();
+            var marketHourDbEntry = mhdb.GetEntry(Market.CME, "ES", SecurityType.Future);
             var securityExchangeHours = marketHourDbEntry.ExchangeHours;
-            var config = new SubscriptionDataConfig(typeof(TradeBar), Symbols.ES_Future_Chain, Resolution.Daily, marketHourDbEntry.DataTimeZone, securityExchangeHours.TimeZone, true, false, false);
+            var config = new SubscriptionDataConfig(typeof(TradeBar), Symbols.ES_Future_Chain, Resolution.Daily, marketHourDbEntry.DataTimeZone,
+                securityExchangeHours.TimeZone, true, extendedMarket, false);
             manager.Add(
                 Symbols.ES_Future_Chain,
                 new Security(
@@ -340,7 +427,7 @@ namespace QuantConnect.Tests.Common.Scheduling
                     new SecurityCache()
                 )
             );
-            var rules = new TimeRules(manager, dateTimeZone);
+            var rules = new TimeRules(manager, dateTimeZone, mhdb);
             return rules;
         }
     }

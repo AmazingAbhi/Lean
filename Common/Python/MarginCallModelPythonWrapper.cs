@@ -24,27 +24,15 @@ namespace QuantConnect.Python
     /// <summary>
     /// Provides a margin call model that wraps a <see cref="PyObject"/> object that represents the model responsible for picking which orders should be executed during a margin call
     /// </summary>
-    public class MarginCallModelPythonWrapper : IMarginCallModel
+    public class MarginCallModelPythonWrapper : BasePythonWrapper<IMarginCallModel>, IMarginCallModel
     {
-        private readonly dynamic _model;
-
         /// <summary>
         /// Constructor for initialising the <see cref="MarginCallModelPythonWrapper"/> class with wrapped <see cref="PyObject"/> object
         /// </summary>
         /// <param name="model">Represents the model responsible for picking which orders should be executed during a margin call</param>
         public MarginCallModelPythonWrapper(PyObject model)
+            : base(model)
         {
-            using (Py.GIL())
-            {
-                foreach (var attributeName in new[] { "ExecuteMarginCall", "GetMarginCallOrders" })
-                {
-                    if (!model.HasAttr(attributeName))
-                    {
-                        throw new NotImplementedException($"IMarginCallModel.{attributeName} must be implemented. Please implement this missing method on {model.GetPythonType()}");
-                    }
-                }
-            }
-            _model = model;
         }
 
         /// <summary>
@@ -57,7 +45,7 @@ namespace QuantConnect.Python
         {
             using (Py.GIL())
             {
-                var marginCalls = _model.ExecuteMarginCall(generatedMarginCallOrders) as PyObject;
+                var marginCalls = InvokeMethod(nameof(ExecuteMarginCall), generatedMarginCallOrders);
 
                 // Since ExecuteMarginCall may return a python list
                 // Need to convert to C# list
@@ -88,13 +76,14 @@ namespace QuantConnect.Python
         {
             using (Py.GIL())
             {
-                var value = _model.GetMarginCallOrders(out issueMarginCallWarning);
+                var value = InvokeMethod(nameof(GetMarginCallOrders), false);
 
                 // Since pythonnet does not support out parameters, the methods return
                 // a tuple where the out parameter comes after the other returned values
                 if (!PyTuple.IsTupleType(value))
                 {
-                    throw new ArgumentException($"{_model.__class__.__name__}.GetMarginCallOrders: Must return a tuple, where the first item is a list and the second a boolean");
+                    throw new ArgumentException($@"{(Instance as dynamic).__class__.__name__}.GetMarginCallOrders(): {
+                        Messages.MarginCallModelPythonWrapper.GetMarginCallOrdersMustReturnTuple}");
                 }
 
                 // In this case, the first item holds the list of margin calls

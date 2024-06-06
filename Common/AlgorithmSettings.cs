@@ -54,7 +54,7 @@ namespace QuantConnect
         /// <summary>
         /// Configurable minimum order margin portfolio percentage to ignore bad orders, orders with unrealistic small sizes
         /// </summary>
-        /// <remarks>Default value is 0. This setting is useful to avoid small trading noise when using SetHoldings</remarks>
+        /// <remarks>Default value is 0.1% of the portfolio value. This setting is useful to avoid small trading noise when using SetHoldings</remarks>
         public decimal MinimumOrderMarginPortfolioPercentage { get; set; }
 
         /// <summary>
@@ -64,13 +64,14 @@ namespace QuantConnect
         /// All securities added with <see cref="IAlgorithm.AddSecurity"/> are counted as one,
         /// with the exception of options and futures where every single contract in a chain counts as one.
         /// </remarks>
-        public int DataSubscriptionLimit { get; set; }
+        [Obsolete("This property is deprecated. Please observe data subscription limits set by your brokerage to avoid runtime errors.")]
+        public int DataSubscriptionLimit { get; set; } = int.MaxValue;
 
         /// <summary>
         /// Gets/sets the SetHoldings buffers value.
         /// The buffer is used for orders not to be rejected due to volatility when using SetHoldings and CalculateOrderQuantity
         /// </summary>
-        public decimal FreePortfolioValue { get; set; }
+        public decimal? FreePortfolioValue { get; set; }
 
         /// <summary>
         /// Gets/sets the SetHoldings buffers value percentage.
@@ -96,15 +97,56 @@ namespace QuantConnect
         public TimeSpan StalePriceTimeSpan { get; set; }
 
         /// <summary>
+        /// The warmup resolution to use if any
+        /// </summary>
+        /// <remarks>This allows improving the warmup speed by setting it to a lower resolution than the one added in the algorithm</remarks>
+        public Resolution? WarmupResolution { get; set; }
+
+        /// <summary>
+        /// The warmup resolution to use if any
+        /// </summary>
+        /// <remarks>This allows improving the warmup speed by setting it to a lower resolution than the one added in the algorithm.
+        /// Pass through version to be user friendly</remarks>
+        public Resolution? WarmUpResolution
+        {
+            get
+            {
+                return WarmupResolution;
+            }
+            set
+            {
+                WarmupResolution = value;
+            }
+        }
+
+        /// <summary>
+        /// Number of trading days per year for this Algorithm's portfolio statistics.
+        /// </summary>
+        /// <remarks>Effect on 
+        /// <see cref="Statistics.PortfolioStatistics.AnnualVariance"/>,
+        /// <seealso cref="Statistics.PortfolioStatistics.AnnualStandardDeviation"/>,
+        /// <seealso cref="Statistics.PortfolioStatistics.SharpeRatio"/>,
+        /// <seealso cref="Statistics.PortfolioStatistics.SortinoRatio"/>,
+        /// <seealso cref="Statistics.PortfolioStatistics.TrackingError"/>,
+        /// <seealso cref="Statistics.PortfolioStatistics.InformationRatio"/>.
+        /// </remarks>
+        public int? TradingDaysPerYear { get; set; }
+
+        /// <summary>
+        /// True if daily strict end times are enabled
+        /// </summary>
+        public bool DailyStrictEndTimeEnabled { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="AlgorithmSettings"/> class
         /// </summary>
         public AlgorithmSettings()
         {
-            // default is unlimited
-            DataSubscriptionLimit = int.MaxValue;
             LiquidateEnabled = true;
-            FreePortfolioValue = 250;
             FreePortfolioValuePercentage = 0.0025m;
+            // Because the free portfolio value has a trailing behavior by default, let's add a default minimum order margin portfolio percentage
+            // to avoid tiny trades when rebalancing, defaulting to 0.1% of the TPV
+            MinimumOrderMarginPortfolioPercentage = 0.001m;
             StalePriceTimeSpan = Time.OneHour;
             MaxAbsolutePortfolioTargetPercentage = 1000000000;
             MinAbsolutePortfolioTargetPercentage = 0.0000000001m;

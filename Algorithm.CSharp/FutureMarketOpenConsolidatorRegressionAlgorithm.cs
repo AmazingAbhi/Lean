@@ -17,7 +17,7 @@ using System;
 using System.Collections.Generic;
 using QuantConnect.Interfaces;
 using QuantConnect.Data;
-using QuantConnect.Data.Consolidators;
+using QuantConnect.Util;
 
 namespace QuantConnect.Algorithm.CSharp
 {
@@ -27,49 +27,45 @@ namespace QuantConnect.Algorithm.CSharp
     /// </summary>
     public class FutureMarketOpenConsolidatorRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
     {
-        private static List<DateTime> _expectedOpens = new List<DateTime>(){
-            new DateTime(2013, 10, 06, 18, 00, 0),
-            new DateTime(2013, 10, 07, 16, 30, 0),
-            new DateTime(2013, 10, 08, 16, 30, 0),
-            new DateTime(2013, 10, 09, 16, 30, 0),
-            new DateTime(2013, 10, 10, 16, 30, 0),
-            new DateTime(2013, 10, 11, 16, 30, 0),
-            new DateTime(2013, 10, 13, 18, 00, 0),
+        protected virtual bool ExtendedMarketHours => false;
+        protected virtual List<DateTime> ExpectedOpens => new List<DateTime>()
+        {
+            new DateTime(2013, 10, 07, 9, 30, 0),
+            new DateTime(2013, 10, 08, 9, 30, 0),
+            new DateTime(2013, 10, 09, 9, 30, 0),
+            new DateTime(2013, 10, 10, 9, 30, 0),
+            new DateTime(2013, 10, 11, 9, 30, 0),
+            new DateTime(2013, 10, 14, 9, 30, 0),
+            new DateTime(2013, 10, 14, 9, 30, 0),
         };
-        private static List<DateTime> _expectedCloses = new List<DateTime>(){
-            new DateTime(2013, 10, 07, 16, 15, 0),
-            new DateTime(2013, 10, 08, 16, 15, 0),
-            new DateTime(2013, 10, 09, 16, 15, 0),
-            new DateTime(2013, 10, 10, 16, 15, 0),
-            new DateTime(2013, 10, 11, 16, 15, 0),
-            new DateTime(2013, 10, 14, 16, 15, 0),
-            new DateTime(2013, 10, 14, 16, 15, 0),
+        protected virtual List<DateTime> ExpectedCloses => new List<DateTime>()
+        {
+            new DateTime(2013, 10, 07, 17, 0, 0),
+            new DateTime(2013, 10, 08, 17, 0, 0),
+            new DateTime(2013, 10, 09, 17, 0, 0),
+            new DateTime(2013, 10, 10, 17, 0, 0),
+            new DateTime(2013, 10, 11, 17, 0, 0),
+            new DateTime(2013, 10, 14, 17, 0, 0),
+            new DateTime(2013, 10, 14, 17, 0, 0),
         };
 
-        private Queue<DateTime> _expectedOpensQueue = new Queue<DateTime>(_expectedOpens);
-        private Queue<DateTime> _expectedClosesQueue = new Queue<DateTime>(_expectedCloses);
+        private Queue<DateTime> _expectedOpensQueue;
+        private Queue<DateTime> _expectedClosesQueue;
 
         public override void Initialize()
         {
             SetStartDate(2013, 10, 06);
             SetEndDate(2013, 10, 14);
 
-            var es = AddSecurity(SecurityType.Future, "ES");
+            var es = AddSecurity(SecurityType.Future, "ES", extendedMarketHours: ExtendedMarketHours);
+
+            _expectedOpensQueue = new Queue<DateTime>(ExpectedOpens);
+            _expectedClosesQueue = new Queue<DateTime>(ExpectedCloses);
 
             Consolidate<BaseData>(es.Symbol, dataTime =>
             {
-                var start = es.Exchange.Hours.GetPreviousMarketOpen(dataTime, false);
-                var end = es.Exchange.Hours.GetNextMarketClose(start, false);
-
-                // market might open at 16:30 and close again at 17:00 but we are not interested in using the close so we skip it here
-                while (end.Date == start.Date)
-                {
-                    end = es.Exchange.Hours.GetNextMarketClose(end, false);
-                }
-
-                var period = end - start;
                 // based on the given data time we return the start time of it's bar and the expected period size
-                return new CalendarInfo(start, period);
+                return LeanData.GetDailyCalendar(dataTime, es.Exchange, ExtendedMarketHours);
             }, bar => Assert(bar));
         }
 
@@ -92,12 +88,12 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// This is used by the regression test system to indicate which languages this algorithm is written in.
         /// </summary>
-        public Language[] Languages { get; } = { Language.CSharp };
+        public virtual Language[] Languages { get; } = { Language.CSharp };
 
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 94112;
+        public virtual long DataPoints => 32073;
 
         /// </summary>
         /// Data Points count of the algorithm history
@@ -107,16 +103,19 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// This is used by the regression test system to indicate what the expected statistics are from running the algorithm
         /// </summary>
-        public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
+        public virtual Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "0"},
+            {"Total Orders", "0"},
             {"Average Win", "0%"},
             {"Average Loss", "0%"},
             {"Compounding Annual Return", "0%"},
             {"Drawdown", "0%"},
             {"Expectancy", "0"},
+            {"Start Equity", "100000"},
+            {"End Equity", "100000"},
             {"Net Profit", "0%"},
             {"Sharpe Ratio", "0"},
+            {"Sortino Ratio", "0"},
             {"Probabilistic Sharpe Ratio", "0%"},
             {"Loss Rate", "0%"},
             {"Win Rate", "0%"},
@@ -131,25 +130,7 @@ namespace QuantConnect.Algorithm.CSharp
             {"Total Fees", "$0.00"},
             {"Estimated Strategy Capacity", "$0"},
             {"Lowest Capacity Asset", ""},
-            {"Fitness Score", "0"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "79228162514264337593543950335"},
-            {"Return Over Maximum Drawdown", "79228162514264337593543950335"},
-            {"Portfolio Turnover", "0"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
+            {"Portfolio Turnover", "0%"},
             {"OrderListHash", "d41d8cd98f00b204e9800998ecf8427e"}
         };
     }

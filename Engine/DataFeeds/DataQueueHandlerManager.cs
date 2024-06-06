@@ -20,7 +20,10 @@ using QuantConnect.Data;
 using QuantConnect.Packets;
 using QuantConnect.Logging;
 using QuantConnect.Interfaces;
+using QuantConnect.Securities;
+using QuantConnect.Data.Market;
 using System.Collections.Generic;
+using QuantConnect.Lean.Engine.DataFeeds.Enumerators;
 
 namespace QuantConnect.Lean.Engine.DataFeeds
 {
@@ -29,18 +32,33 @@ namespace QuantConnect.Lean.Engine.DataFeeds
     /// </summary>
     public class DataQueueHandlerManager : IDataQueueHandler, IDataQueueUniverseProvider
     {
-        private readonly Dictionary<SubscriptionDataConfig, IDataQueueHandler> _dataConfigAndDataHandler = new();
+        private ITimeProvider _frontierTimeProvider;
+        private readonly IAlgorithmSettings _algorithmSettings;
+        private readonly Dictionary<SubscriptionDataConfig, Queue<IDataQueueHandler>> _dataConfigAndDataHandler = new();
+
+        /// <summary>
+        /// Creates a new instance
+        /// </summary>
+        public DataQueueHandlerManager(IAlgorithmSettings settings)
+        {
+            _algorithmSettings = settings;
+        }
 
         /// <summary>
         /// Collection of data queue handles being used
         /// </summary>
         /// <remarks>Protected for testing purposes</remarks>
-        protected List<IDataQueueHandler> DataHandlers { get; } = new();
+        protected List<IDataQueueHandler> DataHandlers { get; set; } = new();
 
         /// <summary>
         /// True if the composite queue handler has any <see cref="IDataQueueUniverseProvider"/> instance
         /// </summary>
         public bool HasUniverseProvider => DataHandlers.OfType<IDataQueueUniverseProvider>().Any();
+
+        /// <summary>
+        /// Event triggered when an unsupported configuration is detected
+        /// </summary>
+        public event EventHandler<SubscriptionDataConfig> UnsupportedConfiguration;
 
         /// <summary>
         /// Subscribe to the specified configuration
@@ -50,15 +68,76 @@ namespace QuantConnect.Lean.Engine.DataFeeds
         /// <returns>The new enumerator for this subscription request</returns>
         public IEnumerator<BaseData> Subscribe(SubscriptionDataConfig dataConfig, EventHandler newDataAvailableHandler)
         {
+            Exception failureException = null;
             foreach (var dataHandler in DataHandlers)
             {
-                var enumerator = dataHandler.Subscribe(dataConfig, newDataAvailableHandler);
+                // Emit ticks & custom data as soon as we get them, they don't need any kind of batching behavior applied to them
+                // only use the frontier time provider if we need to
+                var immediateEmission = dataConfig.Resolution == Resolution.Tick || dataConfig.IsCustomData || _frontierTimeProvider == null;
+                var exchangeTimeZone = dataConfig.ExchangeTimeZone;
+
+                IEnumerator<BaseData> enumerator;
+                try
+                {
+                    enumerator = dataHandler.Subscribe(dataConfig, immediateEmission ? newDataAvailableHandler
+                        : (sender, eventArgs) => {
+                            // let's only wake up the main thread if the data point is allowed to be emitted, else we could fill forward previous bar and not let this one through
+                            var dataAvailable = eventArgs as NewDataAvailableEventArgs;
+                            if (dataAvailable == null || dataAvailable.DataPoint == null
+                                || dataAvailable.DataPoint.EndTime.ConvertToUtc(exchangeTimeZone) <= _frontierTimeProvider.GetUtcNow())
+                            {
+                                newDataAvailableHandler?.Invoke(sender, eventArgs);
+                            }
+                        });
+                }
+                catch (Exception exception)
+                {
+                    // we will try the next DQH if any, if it handles the request correctly we ignore the error
+                    failureException = exception;
+                    continue;
+                }
+
                 // Check if the enumerator is not empty
                 if (enumerator != null)
                 {
-                    _dataConfigAndDataHandler.Add(dataConfig, dataHandler);
-                    return enumerator;
+                    if (!_dataConfigAndDataHandler.TryGetValue(dataConfig, out var dataQueueHandlers))
+                    {
+                        // we can get the same subscription request multiple times, the aggregator manager handles updating each enumerator
+                        // but we need to keep track so we can call unsubscribe later to the target data queue handler
+                        _dataConfigAndDataHandler[dataConfig] = dataQueueHandlers = new Queue<IDataQueueHandler>();
+                    }
+                    dataQueueHandlers.Enqueue(dataHandler);
+
+                    if (immediateEmission)
+                    {
+                        return enumerator;
+                    }
+
+                    var exchangeHours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(dataConfig.Symbol.ID.Market, dataConfig.Symbol, dataConfig.Symbol.SecurityType);
+                    if (LeanData.UseStrictEndTime(_algorithmSettings.DailyStrictEndTimeEnabled, dataConfig.Symbol, dataConfig.Increment, exchangeHours))
+                    {
+                        // before the first frontier enumerator we adjust the endtimes if required
+                        enumerator = new StrictDailyEndTimesEnumerator(enumerator, exchangeHours);
+                    }
+
+                    return new FrontierAwareEnumerator(enumerator, _frontierTimeProvider,
+                        new TimeZoneOffsetProvider(exchangeTimeZone, _frontierTimeProvider.GetUtcNow(), Time.EndOfTime)
+                    );
                 }
+            }
+
+            if (failureException != null)
+            {
+                // we were not able to serve the request with any DQH and we got an exception, let's bubble it up
+                throw failureException;
+            }
+
+            // filter out warning for expected cases to reduce noise
+            if (!dataConfig.Symbol.Value.Contains("-UNIVERSE-", StringComparison.InvariantCultureIgnoreCase)
+                && dataConfig.Type != typeof(Delisting)
+                && !dataConfig.Symbol.IsCanonical())
+            {
+                UnsupportedConfiguration?.Invoke(this, dataConfig);
             }
             return null;
         }
@@ -69,9 +148,16 @@ namespace QuantConnect.Lean.Engine.DataFeeds
         /// <param name="dataConfig">Subscription config to be removed</param>
         public virtual void Unsubscribe(SubscriptionDataConfig dataConfig)
         {
-            if (_dataConfigAndDataHandler.Remove(dataConfig, out var dataHandler))
+            if (_dataConfigAndDataHandler.TryGetValue(dataConfig, out var dataHandlers))
             {
+                var dataHandler = dataHandlers.Dequeue();
                 dataHandler.Unsubscribe(dataConfig);
+
+                if (dataHandlers.Count == 0)
+                {
+                    // nothing left
+                    _dataConfigAndDataHandler.Remove(dataConfig);
+                }
             }
         }
 
@@ -89,6 +175,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                 dataHandler.SetJob(job);
                 DataHandlers.Add(dataHandler);
             }
+
+            _frontierTimeProvider = InitializeFrontierTimeProvider();
         }
 
         /// <summary>
@@ -137,6 +225,21 @@ namespace QuantConnect.Lean.Engine.DataFeeds
         public bool CanPerformSelection()
         {
             return GetUniverseProviders().Any(provider => provider.CanPerformSelection());
+        }
+
+        /// <summary>
+        /// Creates the frontier time provider instance
+        /// </summary>
+        /// <remarks>Protected for testing purposes</remarks>
+        protected virtual ITimeProvider InitializeFrontierTimeProvider()
+        {
+            var timeProviders = DataHandlers.OfType<ITimeProvider>().ToList();
+            if (timeProviders.Any())
+            {
+                Log.Trace($"DataQueueHandlerManager.InitializeFrontierTimeProvider(): will use the following IDQH frontier time providers: [{string.Join(",", timeProviders.Select(x => x.GetType()))}]");
+                return new CompositeTimeProvider(timeProviders);
+            }
+            return null;
         }
 
         private IEnumerable<IDataQueueUniverseProvider> GetUniverseProviders()

@@ -29,7 +29,6 @@ using QuantConnect.Data.Market;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Interfaces;
 using QuantConnect.Lean.Engine;
-using QuantConnect.Lean.Engine.Alpha;
 using QuantConnect.Lean.Engine.DataFeeds;
 using QuantConnect.Lean.Engine.RealTime;
 using QuantConnect.Lean.Engine.Results;
@@ -39,6 +38,7 @@ using QuantConnect.Orders;
 using QuantConnect.Packets;
 using QuantConnect.Scheduling;
 using QuantConnect.Securities;
+using QuantConnect.Statistics;
 using Log = QuantConnect.Logging.Log;
 
 namespace QuantConnect.Tests.Engine
@@ -56,7 +56,7 @@ namespace QuantConnect.Tests.Engine
             AlgorithmManagerAlgorithmStatusTest.AlgorithmStatus = algorithmStatus;
             var parameter = new RegressionTests.AlgorithmStatisticsTestParameters("QuantConnect.Tests.Engine.AlgorithmManagerTests+AlgorithmManagerAlgorithmStatusTest",
                 new Dictionary<string, string> {
-                    {"Total Trades", "0"},
+                    {PerformanceMetrics.TotalOrders, "0"},
                     {"Average Win", "0%"},
                     {"Average Loss", "0%"},
                     {"Compounding Annual Return", "0%"},
@@ -81,7 +81,6 @@ namespace QuantConnect.Tests.Engine
 
             AlgorithmRunner.RunLocalBacktest(parameter.Algorithm,
                 parameter.Statistics,
-                parameter.AlphaStatistics,
                 parameter.Language,
                 parameter.ExpectedFinalStatus,
                 algorithmLocation: "QuantConnect.Tests.dll");
@@ -121,21 +120,20 @@ namespace QuantConnect.Tests.Engine
             var results = new BacktestingResultHandler();
             var realtime = new BacktestingRealTimeHandler();
             var leanManager = new NullLeanManager();
-            var alphas = new NullAlphaHandler();
             var token = new CancellationToken();
             var nullSynchronizer = new NullSynchronizer(algorithm);
 
             algorithm.Initialize();
             algorithm.PostInitialize();
 
-            results.Initialize(job, new QuantConnect.Messaging.Messaging(), new Api.Api(), transactions);
+            results.Initialize(new (job, new QuantConnect.Messaging.Messaging(), new Api.Api(), transactions, null));
             results.SetAlgorithm(algorithm, algorithm.Portfolio.TotalPortfolioValue);
             transactions.Initialize(algorithm, new BacktestingBrokerage(algorithm), results);
             feed.Initialize(algorithm, job, results, null, null, null, dataManager, null, null);
 
             Log.Trace("Starting algorithm manager loop to process " + nullSynchronizer.Count + " time slices");
             var sw = Stopwatch.StartNew();
-            algorithmManager.Run(job, algorithm, nullSynchronizer, transactions, results, realtime, leanManager, alphas, token);
+            algorithmManager.Run(job, algorithm, nullSynchronizer, transactions, results, realtime, leanManager, token);
             sw.Stop();
 
             realtime.Exit();
@@ -143,31 +141,6 @@ namespace QuantConnect.Tests.Engine
             var thousands = nullSynchronizer.Count / 1000d;
             var seconds = sw.Elapsed.TotalSeconds;
             Log.Trace("COUNT: " + nullSynchronizer.Count + "  KPS: " + thousands/seconds);
-        }
-
-        public class NullAlphaHandler : IAlphaHandler
-        {
-            public bool IsActive { get; }
-            public AlphaRuntimeStatistics RuntimeStatistics { get; }
-            public void Initialize(AlgorithmNodePacket job, IAlgorithm algorithm, IMessagingHandler messagingHandler, IApi api, ITransactionHandler transactionHandler)
-            {
-            }
-
-            public void OnAfterAlgorithmInitialized(IAlgorithm algorithm)
-            {
-            }
-
-            public void ProcessSynchronousEvents()
-            {
-            }
-
-            public void Run()
-            {
-            }
-
-            public void Exit()
-            {
-            }
         }
 
         public class NullLeanManager : ILeanManager
@@ -213,13 +186,6 @@ namespace QuantConnect.Tests.Engine
             {
             }
 
-            public void Initialize(AlgorithmNodePacket job,
-                IMessagingHandler messagingHandler,
-                IApi api,
-                ITransactionHandler transactionHandler)
-            {
-            }
-
             public void DebugMessage(string message)
             {
             }
@@ -256,10 +222,6 @@ namespace QuantConnect.Tests.Engine
             {
             }
 
-            public void SetAlphaRuntimeStatistics(AlphaRuntimeStatistics statistics)
-            {
-            }
-
             public void SendStatusUpdate(AlgorithmStatus status, string message = "")
             {
             }
@@ -285,6 +247,27 @@ namespace QuantConnect.Tests.Engine
             }
 
             public void SetDataManager(IDataFeedSubscriptionManager dataManager)
+            {
+            }
+
+            public StatisticsResults StatisticsResults()
+            {
+                return new StatisticsResults();
+            }
+
+            public void SetSummaryStatistic(string name, string value)
+            {
+            }
+
+            public void AlgorithmTagsUpdated(HashSet<string> tags)
+            {
+            }
+
+            public void AlgorithmNameUpdated(string name)
+            {
+            }
+
+            public void Initialize(ResultHandlerInitializeParameters parameters)
             {
             }
         }
@@ -372,12 +355,13 @@ namespace QuantConnect.Tests.Engine
                 var dividends = new Dividends();
                 var delistings = new Delistings();
                 var symbolChanges = new SymbolChangedEvents();
+                var marginInterestRates = new MarginInterestRates();
                 var dataFeedPackets = new List<DataFeedPacket>();
                 var customData = new List<UpdateData<ISecurityPrice>>();
                 var changes = SecurityChanges.None;
                 do
                 {
-                    var slice = new Slice(default(DateTime), _data, bars, quotes, ticks, options, futures, splits, dividends, delistings, symbolChanges, default(DateTime));
+                    var slice = new Slice(default(DateTime), _data, bars, quotes, ticks, options, futures, splits, dividends, delistings, symbolChanges, marginInterestRates, default(DateTime));
                     var timeSlice = new TimeSlice(_frontierUtc, _data.Count, slice, dataFeedPackets, _securitiesUpdateData, _consolidatorUpdateData, customData, changes, new Dictionary<Universe, BaseDataCollection>());
                     yield return timeSlice;
                     _frontierUtc += _frontierStepSize;

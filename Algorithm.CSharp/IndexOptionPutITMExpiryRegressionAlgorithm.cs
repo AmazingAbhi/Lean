@@ -185,7 +185,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 20425;
+        public long DataPoints => 19890;
 
         /// <summary>
         /// Data Points count of the algorithm history
@@ -197,48 +197,33 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "2"},
+            {"Total Orders", "2"},
             {"Average Win", "0%"},
-            {"Average Loss", "-51.53%"},
-            {"Compounding Annual Return", "-81.170%"},
-            {"Drawdown", "13.800%"},
+            {"Average Loss", "-50.30%"},
+            {"Compounding Annual Return", "-77.114%"},
+            {"Drawdown", "12.500%"},
             {"Expectancy", "-1"},
-            {"Net Profit", "-11.084%"},
-            {"Sharpe Ratio", "-1.893"},
-            {"Probabilistic Sharpe Ratio", "0.513%"},
+            {"Start Equity", "100000"},
+            {"End Equity", "90146"},
+            {"Net Profit", "-9.854%"},
+            {"Sharpe Ratio", "-1.957"},
+            {"Sortino Ratio", "-0.569"},
+            {"Probabilistic Sharpe Ratio", "0.709%"},
             {"Loss Rate", "100%"},
             {"Win Rate", "0%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "-0.683"},
-            {"Beta", "0.218"},
-            {"Annual Standard Deviation", "0.356"},
-            {"Annual Variance", "0.126"},
-            {"Information Ratio", "-1.94"},
-            {"Tracking Error", "0.37"},
-            {"Treynor Ratio", "-3.083"},
+            {"Alpha", "-0.64"},
+            {"Beta", "0.196"},
+            {"Annual Standard Deviation", "0.323"},
+            {"Annual Variance", "0.104"},
+            {"Information Ratio", "-1.982"},
+            {"Tracking Error", "0.34"},
+            {"Treynor Ratio", "-3.216"},
             {"Total Fees", "$0.00"},
             {"Estimated Strategy Capacity", "$0"},
             {"Lowest Capacity Asset", "SPX 31KC0UJHC75TA|SPX 31"},
-            {"Fitness Score", "0.005"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "-0.662"},
-            {"Return Over Maximum Drawdown", "-7.157"},
-            {"Portfolio Turnover", "0.025"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "6df8b200489a2f217cd514592ee98663"}
+            {"Portfolio Turnover", "1.94%"},
+            {"OrderListHash", "57774fcbb602a956f77b17b73fb3665a"}
         };
     }
 }

@@ -22,7 +22,6 @@ using Newtonsoft.Json;
 using QuantConnect.Util;
 using QuantConnect.Data.Market;
 using System.Collections.Generic;
-using QuantConnect.Data.Custom.AlphaStreams;
 
 namespace QuantConnect.Data
 {
@@ -36,8 +35,6 @@ namespace QuantConnect.Data
     [ProtoInclude(200, typeof(QuoteBar))]
     [ProtoInclude(300, typeof(Dividend))]
     [ProtoInclude(400, typeof(Split))]
-    [ProtoInclude(555, typeof(AlphaStreamsPortfolioState))]
-    [ProtoInclude(556, typeof(AlphaStreamsOrderEvent))]
     public abstract class BaseData : IBaseData
     {
         private decimal _value;
@@ -122,7 +119,7 @@ namespace QuantConnect.Data
         /// <summary>
         /// As this is a backtesting platform we'll provide an alias of value as price.
         /// </summary>
-        public decimal Price => Value;
+        public virtual decimal Price => Value;
 
         /// <summary>
         /// Constructor for initialising the dase data class
@@ -217,6 +214,15 @@ namespace QuantConnect.Data
         {
             // by default, we'll assume all custom data is sparse data
             return Symbol.SecurityType == SecurityType.Base;
+        }
+
+        /// <summary>
+        /// Indicates whether this contains data that should be stored in the security cache
+        /// </summary>
+        /// <returns>Whether this contains data that should be stored in the security cache</returns>
+        public virtual bool ShouldCacheToSecurity()
+        {
+            return true;
         }
 
         /// <summary>

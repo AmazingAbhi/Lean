@@ -17,10 +17,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using QuantConnect.Brokerages;
+using QuantConnect.Securities;
 using QuantConnect.Data;
 using QuantConnect.Data.Shortable;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Interfaces;
+using System.IO;
 
 namespace QuantConnect.Algorithm.CSharp
 {
@@ -82,11 +84,15 @@ namespace QuantConnect.Algorithm.CSharp
             { _20140329, new Symbol[0] }
         };
 
+        private Security _security;
+
         public override void Initialize()
         {
             SetStartDate(2014, 3, 25);
             SetEndDate(2014, 3, 29);
             SetCash(10000000);
+            _security = AddEquity(_spy);
+            _security.SetShortableProvider(new RegressionTestShortableProvider());
 
             AddUniverse(CoarseSelection);
             UniverseSettings.Resolution = Resolution.Daily;
@@ -101,26 +107,24 @@ namespace QuantConnect.Algorithm.CSharp
                 return;
             }
 
-            foreach (var symbol in ActiveSecurities.Keys.OrderBy(symbol => symbol))
+            foreach (var (symbol, security) in ActiveSecurities.Where(kvp => !kvp.Value.Invested).OrderBy(kvp => kvp.Key))
             {
-                if (!Portfolio.ContainsKey(symbol) || !Portfolio[symbol].Invested)
+                var shortableQuantity = security.ShortableProvider.ShortableQuantity(symbol, Time);
+                if (shortableQuantity == null)
                 {
-                    if (!Shortable(symbol))
-                    {
-                        throw new Exception($"Expected {symbol} to be shortable on {Time:yyyy-MM-dd}");
-                    }
-
-                    // Buy at least once into all Symbols. Since daily data will always use
-                    // MOO orders, it makes the testing of liquidating buying into Symbols difficult.
-                    MarketOrder(symbol, -(decimal)ShortableQuantity(symbol));
-                    _lastTradeDate = Time.Date;
+                    throw new Exception($"Expected {symbol} to be shortable on {Time:yyyy-MM-dd}");
                 }
+
+                // Buy at least once into all Symbols. Since daily data will always use
+                // MOO orders, it makes the testing of liquidating buying into Symbols difficult.
+                MarketOrder(symbol, -(decimal)shortableQuantity);
+                _lastTradeDate = Time.Date;
             }
         }
 
         private IEnumerable<Symbol> CoarseSelection(IEnumerable<CoarseFundamental> coarse)
         {
-            var shortableSymbols = AllShortableSymbols();
+            var shortableSymbols = (_security.ShortableProvider as dynamic).AllShortableSymbols(Time);
             var selectedSymbols = coarse
                 .Select(x => x.Symbol)
                 .Where(s => shortableSymbols.ContainsKey(s) && shortableSymbols[s] >= 500)
@@ -165,14 +169,59 @@ namespace QuantConnect.Algorithm.CSharp
         {
             public AllShortableSymbolsRegressionAlgorithmBrokerageModel() : base()
             {
-                ShortableProvider = new RegressionTestShortableProvider();
+            }
+            public override IShortableProvider GetShortableProvider(Security security)
+            {
+                return new RegressionTestShortableProvider();
             }
         }
 
         private class RegressionTestShortableProvider : LocalDiskShortableProvider
         {
-            public RegressionTestShortableProvider() : base(SecurityType.Equity, "testbrokerage", Market.USA)
+            public RegressionTestShortableProvider() : base("testbrokerage")
             {
+            }
+
+            /// <summary>
+            /// Gets a list of all shortable Symbols, including the quantity shortable as a Dictionary.
+            /// </summary>
+            /// <param name="localTime">The algorithm's local time</param>
+            /// <returns>Symbol/quantity shortable as a Dictionary. Returns null if no entry data exists for this date or brokerage</returns>
+            public Dictionary<Symbol, long> AllShortableSymbols(DateTime localTime)
+            {
+                var shortableDataDirectory = Path.Combine(Globals.DataFolder, SecurityType.Equity.SecurityTypeToLower(), Market.USA, "shortable", Brokerage);
+                var allSymbols = new Dictionary<Symbol, long>();
+
+                // Check backwards up to one week to see if we can source a previous file.
+                // If not, then we return a list of all Symbols with quantity set to zero.
+                var i = 0;
+                while (i <= 7)
+                {
+                    var shortableListFile = Path.Combine(shortableDataDirectory, "dates", $"{localTime.AddDays(-i):yyyyMMdd}.csv");
+
+                    foreach (var line in DataProvider.ReadLines(shortableListFile))
+                    {
+                        var csv = line.Split(',');
+                        var ticker = csv[0];
+
+                        var symbol = new Symbol(
+                                SecurityIdentifier.GenerateEquity(ticker, QuantConnect.Market.USA,
+                                    mappingResolveDate: localTime), ticker);
+                        var quantity = Parse.Long(csv[1]);
+
+                        allSymbols[symbol] = quantity;
+                    }
+
+                    if (allSymbols.Count > 0)
+                    {
+                        return allSymbols;
+                    }
+
+                    i++;
+                }
+
+                // Return our empty dictionary if we did not find a file to extract
+                return allSymbols;
             }
         }
 
@@ -189,7 +238,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public long DataPoints => 35410;
+        public long DataPoints => 37748;
 
         /// <summary>
         /// Data Points count of the algorithm history
@@ -201,48 +250,33 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "5"},
+            {"Total Orders", "5"},
             {"Average Win", "0%"},
             {"Average Loss", "0%"},
             {"Compounding Annual Return", "19.147%"},
             {"Drawdown", "0%"},
             {"Expectancy", "0"},
+            {"Start Equity", "10000000"},
+            {"End Equity", "10019217.27"},
             {"Net Profit", "0.192%"},
-            {"Sharpe Ratio", "231.673"},
+            {"Sharpe Ratio", "15.743"},
+            {"Sortino Ratio", "0"},
             {"Probabilistic Sharpe Ratio", "0%"},
             {"Loss Rate", "0%"},
             {"Win Rate", "0%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "0.163"},
-            {"Beta", "-0.007"},
-            {"Annual Standard Deviation", "0.001"},
+            {"Alpha", "0.17"},
+            {"Beta", "0.037"},
+            {"Annual Standard Deviation", "0.01"},
             {"Annual Variance", "0"},
-            {"Information Ratio", "4.804"},
-            {"Tracking Error", "0.098"},
-            {"Treynor Ratio", "-22.526"},
+            {"Information Ratio", "5"},
+            {"Tracking Error", "0.094"},
+            {"Treynor Ratio", "4.278"},
             {"Total Fees", "$307.50"},
             {"Estimated Strategy Capacity", "$2600000.00"},
             {"Lowest Capacity Asset", "GOOCV VP83T1ZUHROL"},
-            {"Fitness Score", "0.106"},
-            {"Kelly Criterion Estimate", "0"},
-            {"Kelly Criterion Probability Value", "0"},
-            {"Sortino Ratio", "79228162514264337593543950335"},
-            {"Return Over Maximum Drawdown", "79228162514264337593543950335"},
-            {"Portfolio Turnover", "0.106"},
-            {"Total Insights Generated", "0"},
-            {"Total Insights Closed", "0"},
-            {"Total Insights Analysis Completed", "0"},
-            {"Long Insight Count", "0"},
-            {"Short Insight Count", "0"},
-            {"Long/Short Ratio", "100%"},
-            {"Estimated Monthly Alpha Value", "$0"},
-            {"Total Accumulated Estimated Alpha Value", "$0"},
-            {"Mean Population Estimated Insight Value", "$0"},
-            {"Mean Population Direction", "0%"},
-            {"Mean Population Magnitude", "0%"},
-            {"Rolling Averaged Population Direction", "0%"},
-            {"Rolling Averaged Population Magnitude", "0%"},
-            {"OrderListHash", "0069f402ffcd2d91b9018b81badfab81"}
+            {"Portfolio Turnover", "10.61%"},
+            {"OrderListHash", "854d4ba6a4ae39f9be2f9a10c8544fe5"}
         };
     }
 }

@@ -16,6 +16,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
 using NodaTime;
@@ -26,7 +27,7 @@ using QuantConnect.Algorithm.CSharp;
 using QuantConnect.Algorithm.Framework.Alphas;
 using QuantConnect.Data;
 using QuantConnect.Data.Auxiliary;
-using QuantConnect.Data.Custom.AlphaStreams;
+using QuantConnect.Data.Fundamental;
 using QuantConnect.Data.Market;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Indicators;
@@ -35,14 +36,101 @@ using QuantConnect.Lean.Engine.HistoricalData;
 using QuantConnect.Orders;
 using QuantConnect.Orders.Fees;
 using QuantConnect.Packets;
+using QuantConnect.Python;
 using QuantConnect.Scheduling;
 using QuantConnect.Securities;
+using QuantConnect.Tests.Brokerages;
 
 namespace QuantConnect.Tests.Common.Util
 {
     [TestFixture]
     public class ExtensionsTests
     {
+        [Test]
+        public void NonExistingEmptyDirectory()
+        {
+            var nonexistingDirectory = $"NonExistingEmptyDirectory-{new Guid()}";
+            Assert.IsTrue(nonexistingDirectory.IsDirectoryEmpty());
+        }
+
+        [Test]
+        public void EmptyDirectory()
+        {
+            var directory = $"EmptyDirectory-{new Guid()}";
+            Directory.CreateDirectory(directory);
+            Assert.IsTrue(directory.IsDirectoryEmpty());
+
+            Directory.Delete(directory, true);
+        }
+
+        [Test]
+        public void DirectoryWithFile()
+        {
+            var directory = $"DirectoryWithFile-{new Guid()}";
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(Path.Combine(directory, "test"), "test");
+
+            Assert.IsFalse(directory.IsDirectoryEmpty());
+
+            Directory.Delete(directory, true);
+        }
+
+        [Test]
+        public void DirectoryWithDirectory()
+        {
+            var directory = $"DirectoryWithDirectory-{new Guid()}";
+            Directory.CreateDirectory(directory);
+            Directory.CreateDirectory(Path.Combine(directory, "test"));
+
+            Assert.IsFalse(directory.IsDirectoryEmpty());
+
+            Directory.Delete(directory, true);
+        }
+
+        [Test]
+        public void EmptyDirectoryCached()
+        {
+            var directory = $"EmptyDirectoryCached-{new Guid()}";
+            Directory.CreateDirectory(directory);
+
+            Assert.IsTrue(directory.IsDirectoryEmpty());
+
+            File.WriteAllText(Path.Combine(directory, "test"), "test");
+
+            Assert.IsTrue(directory.IsDirectoryEmpty());
+
+            Directory.Delete(directory, true);
+        }
+
+        [Test]
+        public void ToMD5()
+        {
+            var result = "pinochopinochopino   ".ToMD5();
+            Assert.AreEqual("261db8a511d4c433fe58f8b9870fc88e", result);
+        }
+
+        [Test]
+        public void ToSha256()
+        {
+            var result = "pinochopinochopino   ".ToSHA256();
+            Assert.AreEqual("327a5a3b33aef00daf26e414542e12bf4205adb716475fa22e53a178e5d8baca", result);
+        }
+
+        [TestCase("1000", 0)]
+        [TestCase("0", 0)]
+        [TestCase("1", 0)]
+        [TestCase("1.0", 1)]
+        [TestCase("0.01", 2)]
+        [TestCase("0.001", 3)]
+        [TestCase("0.0001", 4)]
+        [TestCase("0.00001", 5)]
+        [TestCase("0.000001", 6)]
+        public void GetDecimalPlaces(string decimalInput, int expectedResult)
+        {
+            var value = decimal.Parse(decimalInput, NumberStyles.Any, CultureInfo.InvariantCulture);
+            Assert.AreEqual(expectedResult, value.GetDecimalPlaces());
+        }
+
         [TestCase(0, 10, 110)]
         [TestCase(900, 10, 110)]
         [TestCase(500, 10, 10)]
@@ -211,6 +299,17 @@ namespace QuantConnect.Tests.Common.Util
             Assert.Greater(nextNextExpiration.ID.Date, nextExpiration.ID.Date);
         }
 
+        [TestCase("MDTUSD XJ")]
+        [TestCase("BTCEUR XJ")]
+        [TestCase("BTCUSDC XJ")]
+        [TestCase("BTCUSDT XJ")]
+        public void GDAXMarketNameCompatibilityWithCoinbase(string gdaxTicker)
+        {
+            var sid = SecurityIdentifier.Parse(gdaxTicker);
+
+            Assert.AreEqual(Market.Coinbase, sid.Market);
+        }
+
         [TestCase("A", "a")]
         [TestCase("", "")]
         [TestCase(null, null)]
@@ -224,7 +323,7 @@ namespace QuantConnect.Tests.Common.Util
         [Test]
         public void BatchAlphaResultPacket()
         {
-            var btcusd = Symbol.Create("BTCUSD", SecurityType.Crypto, Market.GDAX);
+            var btcusd = Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Coinbase);
             var insights = new List<Insight>
             {
                 new Insight(DateTime.UtcNow, btcusd, Time.OneMillisecond, InsightType.Price, InsightDirection.Up, 1, 2, "sourceModel1"),
@@ -237,16 +336,15 @@ namespace QuantConnect.Tests.Common.Util
             };
             var orders = new List<Order> { new MarketOrder(btcusd, 1000, DateTime.UtcNow, "ExpensiveOrder") { Id = 1 } };
 
-            var packet1 = new AlphaResultPacket("1", 1, insights: insights, portfolio: new AlphaStreamsPortfolioState { TotalPortfolioValue = 11 });
+            var packet1 = new AlphaResultPacket("1", 1, insights: insights);
             var packet2 = new AlphaResultPacket("1", 1, orders: orders);
-            var packet3 = new AlphaResultPacket("1", 1, orderEvents: orderEvents, portfolio: new AlphaStreamsPortfolioState { TotalPortfolioValue = 12 });
+            var packet3 = new AlphaResultPacket("1", 1, orderEvents: orderEvents);
 
             var result = new List<AlphaResultPacket> { packet1, packet2, packet3 }.Batch();
 
             Assert.AreEqual(2, result.Insights.Count);
             Assert.AreEqual(2, result.OrderEvents.Count);
             Assert.AreEqual(1, result.Orders.Count);
-            Assert.AreEqual(12, result.Portfolio.TotalPortfolioValue);
 
             Assert.IsTrue(result.Insights.SequenceEqual(insights));
             Assert.IsTrue(result.OrderEvents.SequenceEqual(orderEvents));
@@ -258,7 +356,7 @@ namespace QuantConnect.Tests.Common.Util
         [Test]
         public void BatchAlphaResultPacketDuplicateOrder()
         {
-            var btcusd = Symbol.Create("BTCUSD", SecurityType.Crypto, Market.GDAX);
+            var btcusd = Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Coinbase);
             var orders = new List<Order>
             {
                 new MarketOrder(btcusd, 1000, DateTime.UtcNow, "ExpensiveOrder") { Id = 1 },
@@ -292,7 +390,7 @@ namespace QuantConnect.Tests.Common.Util
         public void SeriesIsNotEmpty()
         {
             var series = new Series("SadSeries")
-                { Values = new List<ChartPoint> { new ChartPoint(1, 1) } };
+                { Values = new List<ISeriesPoint> { new ChartPoint(1, 1) } };
 
             Assert.IsFalse(series.IsEmpty());
         }
@@ -313,17 +411,17 @@ namespace QuantConnect.Tests.Common.Util
         public void ChartIsEmptyWithEmptySeries()
         {
             Assert.IsTrue((new Chart("HappyChart")
-                { Series = new Dictionary<string, Series> { { "SadSeries", new Series("SadSeries") } }}).IsEmpty());
+                { Series = new Dictionary<string, BaseSeries> { { "SadSeries", new Series("SadSeries") } }}).IsEmpty());
         }
 
         [Test]
         public void ChartIsNotEmptyWithNonEmptySeries()
         {
             var series = new Series("SadSeries")
-                { Values = new List<ChartPoint> { new ChartPoint(1, 1) } };
+                { Values = new List<ISeriesPoint> { new ChartPoint(1, 1) } };
 
             Assert.IsFalse((new Chart("HappyChart")
-                { Series = new Dictionary<string, Series> { { "SadSeries", series } } }).IsEmpty());
+                { Series = new Dictionary<string, BaseSeries> { { "SadSeries", series } } }).IsEmpty());
         }
 
         [Test]
@@ -446,7 +544,7 @@ namespace QuantConnect.Tests.Common.Util
         {
             var time = new DateTime(2014, 3, 9, 2, 0, 1);
             var expected = new DateTime(2014, 3, 9, 2, 0, 0);
-            var hours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.GDAX, null, SecurityType.Crypto);
+            var hours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.Coinbase, null, SecurityType.Crypto);
             var exchangeRounded = time.ExchangeRoundDownInTimeZone(Time.OneHour, hours, TimeZones.Utc, true);
             Assert.AreEqual(expected, exchangeRounded);
         }
@@ -456,9 +554,34 @@ namespace QuantConnect.Tests.Common.Util
         {
             var time = new DateTime(2014, 11, 2, 2, 0, 1);
             var expected = new DateTime(2014, 11, 2, 2, 0, 0);
-            var hours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.GDAX, null, SecurityType.Crypto);
+            var hours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.Coinbase, null, SecurityType.Crypto);
             var exchangeRounded = time.ExchangeRoundDownInTimeZone(Time.OneHour, hours, TimeZones.Utc, true);
             Assert.AreEqual(expected, exchangeRounded);
+        }
+
+        [Test]
+        // We assert the behavior of noda time convert to utc around daylight saving start and end
+        // Even though start and end un exchange TZ are 1.01:00:00 long (1 day & 1 hour) in utc it's always 1 day
+        public void ConvertToUtcAndDayLightSavings()
+        {
+            {
+                // day light savings starts
+                var start = new DateTime(2011, 3, 12, 19, 0, 0);
+                var end = new DateTime(2011, 3, 13, 20, 0, 0);
+
+                var utcStart = start.ConvertToUtc(TimeZones.NewYork);
+                var utcEnd = end.ConvertToUtc(TimeZones.NewYork);
+                Assert.AreEqual(Time.OneDay, utcEnd - utcStart);
+            }
+            {
+                // day light savings ends
+                var start = new DateTime(2011, 11, 5, 20, 0, 0);
+                var end = new DateTime(2011, 11, 6, 19, 0, 0);
+
+                var utcStart = start.ConvertToUtc(TimeZones.NewYork);
+                var utcEnd = end.ConvertToUtc(TimeZones.NewYork);
+                Assert.AreEqual(Time.OneDay, utcEnd - utcStart);
+            }
         }
 
         [Test]
@@ -550,7 +673,7 @@ namespace QuantConnect.Tests.Common.Util
         {
             var time = new DateTime(2014, 3, 9, 2, 0, 1);
             var expected = new DateTime(2014, 3, 9, 2, 0, 0);
-            var hours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.GDAX, null, SecurityType.Crypto);
+            var hours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.Coinbase, null, SecurityType.Crypto);
             var exchangeRounded = time.ExchangeRoundDownInTimeZone(Time.OneHour, hours, TimeZones.NewYork, true);
             Assert.AreEqual(expected, exchangeRounded);
         }
@@ -560,7 +683,7 @@ namespace QuantConnect.Tests.Common.Util
         {
             var time = new DateTime(2014, 11, 2, 2, 0, 1);
             var expected = new DateTime(2014, 11, 2, 2, 0, 0);
-            var hours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.GDAX, null, SecurityType.Crypto);
+            var hours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Market.Coinbase, null, SecurityType.Crypto);
             var exchangeRounded = time.ExchangeRoundDownInTimeZone(Time.OneHour, hours, TimeZones.NewYork, true);
             Assert.AreEqual(expected, exchangeRounded);
         }
@@ -1312,6 +1435,56 @@ actualDictionary.update({'IBM': 5})
             }
         }
 
+        public class TestGenericClass<T>
+        {
+            public T Value { get; set; }
+        }
+
+        public static TestGenericClass<int> GetGenericClassObject()
+        {
+            return new TestGenericClass<int>();
+        }
+
+        [Test]
+        public void PyObjectConvertFromGenericCSharpType()
+        {
+            using (Py.GIL())
+            {
+                var module = PyModule.FromString(
+                    "PyObjectConvertFromGenericCSharpType",
+                    @"
+from QuantConnect.Tests.Common.Util import ExtensionsTests
+
+def GetGenericClassObject():
+    return ExtensionsTests.GetGenericClassObject()
+");
+
+                var genericObject = module.GetAttr("GetGenericClassObject").Invoke();
+                var result = genericObject.TryConvert<TestGenericClass<int>>(out var _);
+                Assert.IsTrue(result);
+            }
+        }
+
+        [Test]
+        public void PyObjectConvertPythonTypeDerivedFromCSharpType([Values] bool allowPythonDerivative)
+        {
+            using (Py.GIL())
+            {
+                var module = PyModule.FromString(
+                    "PyObjectConvertPythonTypeDerivedFromCSharpType",
+                    @"
+from AlgorithmImports import *
+
+class TestPythonDerivedClass(PythonData):
+    pass
+");
+
+                var obj = module.GetAttr("TestPythonDerivedClass").Invoke();
+                var result = obj.TryConvert<PythonData>(out var _, allowPythonDerivative);
+
+                Assert.AreEqual(allowPythonDerivative, result);
+            }
+        }
 
         [Test]
         public void BatchByDoesNotDropItems()
@@ -1396,8 +1569,9 @@ actualDictionary.update({'IBM': 5})
         [Test]
         public void DateRulesToFunc()
         {
+            var mhdb = MarketHoursDatabase.FromDataFolder();
             var dateRules = new DateRules(new SecurityManager(
-                new TimeKeeper(new DateTime(2015, 1, 1), DateTimeZone.Utc)), DateTimeZone.Utc);
+                new TimeKeeper(new DateTime(2015, 1, 1), DateTimeZone.Utc)), DateTimeZone.Utc, mhdb);
             var first = new DateTime(2015, 1, 10);
             var second = new DateTime(2015, 1, 30);
             var dateRule = dateRules.On(first, second);
@@ -1430,7 +1604,6 @@ actualDictionary.update({'IBM': 5})
             var algo = new QCAlgorithm();
             var dataFeed = new NullDataFeed();
 
-            algo.SubscriptionManager = new SubscriptionManager();
             algo.SubscriptionManager.SetDataManager(new DataManager(
                 dataFeed,
                 new UniverseSelection(
@@ -1454,43 +1627,42 @@ actualDictionary.update({'IBM': 5})
                 new DataPermissionManager()
             ));
 
-            using (var zipDataCacheProvider = new ZipDataCacheProvider(TestGlobals.DataProvider))
+            algo.HistoryProvider = new SubscriptionDataReaderHistoryProvider();
+            algo.HistoryProvider.Initialize(
+                new HistoryProviderInitializeParameters(
+                    null,
+                    null,
+                    null,
+                    TestGlobals.DataCacheProvider,
+                    TestGlobals.MapFileProvider,
+                    TestGlobals.FactorFileProvider,
+                    (_) => {},
+                    false,
+                    new DataPermissionManager(),
+                    algo.ObjectStore,
+                    algo.Settings));
+
+            algo.SetStartDate(DateTime.UtcNow.AddDays(-1));
+
+            var history = algo.History(new[] { Symbols.IBM }, new DateTime(2013, 10, 7), new DateTime(2013, 10, 8), Resolution.Tick).ToList();
+            Assert.AreEqual(57460, history.Count);
+
+            foreach (var slice in history)
             {
-                algo.HistoryProvider = new SubscriptionDataReaderHistoryProvider();
-                algo.HistoryProvider.Initialize(
-                    new HistoryProviderInitializeParameters(
-                        null,
-                        null,
-                        null,
-                        zipDataCacheProvider,
-                        TestGlobals.MapFileProvider,
-                        TestGlobals.FactorFileProvider,
-                        (_) => {},
-                        false,
-                        new DataPermissionManager()));
-
-                algo.SetStartDate(DateTime.UtcNow.AddDays(-1));
-
-                var history = algo.History(new[] { Symbols.IBM }, new DateTime(2013, 10, 7), new DateTime(2013, 10, 8), Resolution.Tick).ToList();
-                Assert.AreEqual(57460, history.Count);
-
-                foreach (var slice in history)
+                if (!slice.Ticks.ContainsKey(Symbols.IBM))
                 {
-                    if (!slice.Ticks.ContainsKey(Symbols.IBM))
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    foreach (var tick in slice.Ticks[Symbols.IBM])
+                foreach (var tick in slice.Ticks[Symbols.IBM])
+                {
+                    if (tick.BidPrice != 0)
                     {
-                        if (tick.BidPrice != 0)
-                        {
-                            Assert.LessOrEqual(Math.Abs(tick.Value - tick.BidPrice), 0.05);
-                        }
-                        if (tick.AskPrice != 0)
-                        {
-                            Assert.LessOrEqual(Math.Abs(tick.Value - tick.AskPrice), 0.05);
-                        }
+                        Assert.LessOrEqual(Math.Abs(tick.Value - tick.BidPrice), 0.05);
+                    }
+                    if (tick.AskPrice != 0)
+                    {
+                        Assert.LessOrEqual(Math.Abs(tick.Value - tick.AskPrice), 0.05);
                     }
                 }
             }
@@ -1575,6 +1747,118 @@ actualDictionary.update({'IBM': 5})
             Assert.AreEqual(expected, actual);
         }
 
+        [TestCase(new int[] { 1, 2 }, 1)]
+        [TestCase(new int[] { -1, 10 }, 1)]
+        [TestCase(new int[] { 2, -5 }, 1)]
+        [TestCase(new int[] { 1, 2, 3 }, 1)]
+        [TestCase(new int[] { 200, -11, 7 }, 1)]
+        [TestCase(new int[] { 10, 20 }, 10)]
+        [TestCase(new int[] { -10, 100 }, 10)]
+        [TestCase(new int[] { 20, -50 }, 10)]
+        [TestCase(new int[] { 10, 20, 30 }, 10)]
+        [TestCase(new int[] { 1000, -55, 35 }, 5)]
+        [TestCase(new int[] { 24, 148, 36, 48, 52, 364 }, 4)]
+        [TestCase(new int[] { 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 }, 1)]
+        public void GreatestCommonDivisorTests(int[] values, int expectedResult)
+        {
+            Assert.AreEqual(expectedResult, values.GreatestCommonDivisor());
+        }
+
+        [Test]
+        public void ConvertsPythonUniverseSelectionSymbolIDDelegateToSymbolDelegate()
+        {
+            using (Py.GIL())
+            {
+                var module = PyModule.FromString(
+                    "ConvertsPythonUniverseSelectionSymbolIDDelegateToSymbolDelegate",
+                    @"
+def select_symbol(fundamental):
+    return [str(x.Symbol.ID) for x in fundamental]
+"
+                );
+                var selectSymbolPythonMethod = module.GetAttr("select_symbol");
+                Assert.IsTrue(selectSymbolPythonMethod.TryConvertToDelegate(out Func<IEnumerable<Fundamental>, object> selectSymbols));
+                Assert.IsNotNull(selectSymbols);
+
+                var selectSymbolsUniverseDelegate = selectSymbols.ConvertToUniverseSelectionSymbolDelegate();
+
+                var reference = new DateTime(2024, 2, 1);
+                var fundamentals = new List<Fundamental>()
+                {
+                    new Fundamental(reference, Symbols.SPY),
+                    new Fundamental(reference, Symbols.AAPL),
+                    new Fundamental(reference, Symbols.IBM),
+                    new Fundamental(reference, Symbols.GOOG)
+                };
+
+                List<Symbol> symbols = null;
+                Assert.DoesNotThrow(() => symbols = selectSymbolsUniverseDelegate(fundamentals).ToList());
+                CollectionAssert.IsNotEmpty(symbols);
+                Assert.That(symbols, Is.All.Matches<Symbol>(x => fundamentals.Any(fund => fund.Symbol == x)));
+            }
+        }
+
+        [TestCaseSource(nameof(DivideCases))]
+        public void SafeDivisionWorksAsExpectedWithEdgeCases(decimal numerator, decimal denominator)
+        {
+            Assert.DoesNotThrow(() => numerator.SafeDivision(denominator));
+        }
+
+        [TestCase("GOOGL", "2004/08/19", "2024/03/01", 2, "GOOG,GOOGL")] // IPO: August 19, 2004
+        [TestCase("GOOGL", "2010/02/01", "2012/03/01", 1, "GOOG")]
+        [TestCase("GOOGL", "2014/04/02", "2024/03/01", 2, "GOOG,GOOGL")] // The restructuring: "GOOG" to "GOOGL"
+        [TestCase("GOOGL", "2014/02/01", "2024/03/01", 2, "GOOG,GOOGL")]
+        [TestCase("GOOGL", "2020/02/01", "2024/03/01", 1, "GOOGL")]
+        [TestCase("GOOGL", "2023/02/01", "2024/03/01", 1, "GOOGL")]
+        [TestCase("GOOG", "2020/02/01", "2024/03/01", 1, "GOOG")]
+        [TestCase("AAPL", "2008/02/01", "2024/03/01", 1, "AAPL")]
+        [TestCase("AAPL", "2008/02/01", "2024/03/01", 1, "AAPL")]
+        [TestCase("GOOG", "2014/04/03", "2024/03/01", 1, "GOOG")] // The restructuring: April 2, 2014 "GOOCV" to "GOOG"
+        [TestCase("GOOG", "2013/04/03", "2014/04/01", 1, "GOOCV")]
+        [TestCase("GOOG", "2013/04/03", "2024/03/01", 2, "GOOCV,GOOG")]
+        [TestCase("GOOG", "2015/04/03", "2024/03/01", 1, "GOOG")]
+        [TestCase("GOOCV", "2010/01/01", "2024/03/01", 2, "GOOCV,GOOG")]
+        [TestCase("GOOG", "2014/01/01", "2024/03/01", 2, "GOOCV,GOOG")]
+        [TestCase("SPWR", "2005/11/17", "2024/03/01", 3, "SPWR,SPWRA,SPWR")] // IPO: November 17, 2005
+        [TestCase("SPWR", "2023/11/16", "2024/03/01", 1, "SPWR")]
+        [TestCase("NFLX", "2023/11/16", "2024/03/01", 0, null, Description = "The Symbol is not mapped")]
+        public void GetHistoricalSymbolNamesByDateRequest(string ticker, DateTime startDateTime, DateTime endDateTime, int expectedAmount, string expectedTickers)
+        {
+            var symbol = Symbol.Create(ticker, SecurityType.Equity, Market.USA);
+
+            var request = TestsHelpers.GetHistoryRequest(symbol, startDateTime, endDateTime, Resolution.Daily, TickType.Trade);
+
+            var tickers = TestGlobals.MapFileProvider.RetrieveSymbolHistoricalDefinitionsInDateRange(symbol, request.StartTimeUtc, request.EndTimeUtc).ToList();
+
+            Assert.That(tickers.Count, Is.EqualTo(expectedAmount));
+
+            if (tickers.Count != 0)
+            {
+                Assert.That(tickers.First().StartDateTimeLocal, Is.EqualTo(startDateTime));
+                Assert.That(tickers.Last().EndDateTimeLocal, Is.EqualTo(endDateTime));
+
+                if (expectedTickers != null)
+                {
+                    foreach (var (actualTicker, expectedTicker) in tickers.Zip(expectedTickers.Split(','), (t, et) => (t.Ticker, et)))
+                    {
+                        Assert.That(actualTicker, Is.EqualTo(expectedTicker));
+                    }
+                }
+            }
+        }
+
+        [TestCase(Futures.Indices.SP500EMini, "2023/11/16", 1)]
+        [TestCase(Futures.Metals.Gold,"2023/11/16", 0, Description = "The startDateTime is not mapped")]
+        public void GetHistoricalFutureSymbolNamesByDateRequest(string ticker, DateTime expiryTickerDate, int expectedAmount)
+        {
+            var futureSymbol = Symbols.CreateFutureSymbol(ticker, expiryTickerDate);
+
+            var tickers =
+                TestGlobals.MapFileProvider.RetrieveSymbolHistoricalDefinitionsInDateRange(futureSymbol, new DateTime(2023, 11, 5), expiryTickerDate).ToList();
+
+            Assert.That(tickers.Count, Is.EqualTo(expectedAmount));
+        }
+
         private PyObject ConvertToPyObject(object value)
         {
             using (Py.GIL())
@@ -1609,5 +1893,14 @@ actualDictionary.update({'IBM': 5})
                 new SecurityCache()
             );
         }
+
+        private static object[] DivideCases =
+        {
+            new decimal[] { 100000000000000000000m, 0.000000000001m },
+            new decimal[] { -100000000000000000000m, 0.000000000001m },
+            new decimal[] { 1, 0 },
+            new decimal[] { 0.0000000000000001m, 10000000000000000000000000000m },
+            new decimal[] { -0.000000000000001m, 10000000000000000000000000000m },
+        };
     }
 }
